@@ -1,5 +1,5 @@
--- Base view: user_actions (MODIFIED)
--- This view will be referenced by other views using ref() syntax
+-- Base view: user_actions (MODIFIED AGAIN - A)
+-- This view will be referenced by multiple views (B and C) using ref() syntax
 
 CREATE OR REPLACE VIEW `your-project.your_dataset.user_actions` AS
 SELECT 
