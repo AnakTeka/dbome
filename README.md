@@ -93,14 +93,6 @@ gcloud auth application-default login
    google_application_credentials: "/path/to/service-account-key.json"
    ```
 
-### 5. Initialize Git Repository
-
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-```
-
 The post-commit hook is now active and will deploy views automatically!
 
 ## 📝 Usage
@@ -140,11 +132,12 @@ bq-view-deploy
 # Dry run (see what would be deployed)
 bq-view-deploy --dry-run
 
+# Deploy specific files only
+bq-view-deploy --files sql/views/user_metrics.sql sql/views/sales.sql
+
 # Use different config file
 bq-view-deploy --config custom-config.yaml
 
-# Deploy specific files only
-bq-view-deploy --files sql/views/user_metrics.sql sql/views/sales.sql
 ```
 
 ### Testing Changes
@@ -191,12 +184,12 @@ deployment:
 |---------|-------------|
 | `bq-view-deploy` | Deploy all SQL views |
 | `bq-view-deploy --dry-run` | Preview deployments without executing |
-| `bq-view-deploy --config FILE` | Use custom config file |
 | `bq-view-deploy --files FILE1 FILE2` | Deploy specific files only |
 | `bq-view-deploy --version` | Show version information |
+| `bq-view-deploy --config FILE` | Use custom config file |
 | `bq-view-deploy --help` | Show detailed help with examples |
 
-### Make Commands (Even Easier!)
+### Make Commands
 | Command | Description |
 |---------|-------------|
 | `make` or `make help` | Show available commands |
@@ -206,16 +199,6 @@ deployment:
 | `make setup` | Run setup script |
 | `make clean` | Clean build artifacts |
 
-### Shell Aliases (Super Fast!)
-Add these to your `~/.bashrc`, `~/.zshrc`, or equivalent:
-```bash
-alias bq-deploy='bq-view-deploy'
-alias bq-dry='bq-view-deploy --dry-run'
-alias bq-check='bq-view-deploy --dry-run'
-# Or use make commands
-alias bq-deploy='make deploy'
-alias bq-dry='make dry-run'
-```
 
 ## 🎯 Workflow Examples
 
@@ -249,22 +232,6 @@ vim sql/views/user_summary.sql
 git add sql/views/user_summary.sql
 git commit -m "Update user summary view with new metrics"
 # ✅ View automatically updated in BigQuery!
-```
-
-### Testing Before Deployment
-
-```bash
-# 1. Make changes to SQL files
-# 2. Test with dry run (multiple ways to do this!)
-bq-view-deploy --dry-run
-# OR
-make dry-run
-# OR with alias
-bq-dry
-
-# 3. If satisfied, commit
-git add .
-git commit -m "Update views"
 ```
 
 ## 🚨 Troubleshooting
@@ -331,12 +298,6 @@ uv run python -m bq_view_manager.main --dry-run
 ## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🆘 Support
-
-- Create an issue for bug reports or feature requests
-- Check existing issues for common problems
-- Refer to [BigQuery documentation](https://cloud.google.com/bigquery/docs) for SQL help
 
 ---
 
