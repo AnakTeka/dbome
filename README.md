@@ -1,336 +1,175 @@
 # BigQuery View Manager
 
-Git-based BigQuery View Management Tool
+A dbt-like BigQuery View Manager with simplified SQL syntax, dependency resolution, and git-based workflows
 
 > *"Mom, can we have dbt?"*  
 > *"We have dbt at home."*  
 > **dbt at home:** 🏠
 
-<!-- Last updated: 2025-01-11 for testing selective post-commit hook -->
+## ✨ Features
 
-A Git-based repository that automatically deploys BigQuery views using native `CREATE OR REPLACE VIEW` SQL syntax and post-commit hooks. Store your view definitions in standard SQL files that can be executed directly in BigQuery, track changes with Git, and keep your BigQuery views in sync automatically.
+- **📝 Simplified SQL syntax** - No more CREATE OR REPLACE VIEW boilerplate!
+- **🔄 dbt-like `ref()` syntax** - Use `{{ ref('view_name') }}` in your SQL
+- **📊 Automatic dependency resolution** - Deploy views in correct order
+- **🎯 Template compilation** - Jinja2-powered SQL templates
+- **🚀 One-command deployment** - Deploy all views with proper dependencies
+- **🔍 Validation & debugging** - Validate references and visualize dependencies
+- **📁 Compiled SQL output** - See resolved SQL files for debugging
+- **⚡ Git-based workflow** - Automatic deployment on commit
+- **🧪 Comprehensive testing** - 89% test coverage with pytest
 
-## 🚀 Features
+## 🚀 Installation
 
-- **Git-based SQL Management**: Store and version control your SQL view files
-- **Automatic Deployment**: Post-commit hooks automatically update BigQuery views
-- **📝 Simplified SQL syntax**: No more CREATE OR REPLACE VIEW boilerplate!
-- **dbt-like ref() Syntax**: Reference other views using `{{ ref('view_name') }}` syntax
-- **Dependency Resolution**: Automatically deploys views in the correct order based on dependencies
-- **Template Compilation**: Jinja2-powered template engine for dynamic SQL generation
-- **Configuration-driven**: YAML configuration for flexible deployment settings
-- **Dry Run Mode**: Test deployments without making changes
-- **Rich CLI Output**: Beautiful console output with progress indicators
-- **Error Handling**: Graceful handling of deployment errors with detailed logging
-
-## 📁 Directory Structure
-
-```
-bq-view-manager/
-├── sql/
-│   └── views/          # SQL views with CREATE OR REPLACE VIEW syntax
-├── bq_view_manager/    # Python package
-│   ├── __init__.py
-│   └── main.py         # Main deployment script
-├── .git/hooks/
-│   └── post-commit     # Git hook for auto-deployment
-├── config.yaml         # BigQuery configuration
-├── pyproject.toml      # Python dependencies
-└── README.md
-```
-
-## 🛠️ Setup
-
-### 1. Prerequisites
-
-- Python 3.11.x or higher
-- [uv](https://docs.astral.sh/uv/) for fast package management (**required**)
-- Google Cloud SDK installed and authenticated
-- BigQuery dataset created in your GCP project
-
-**Note:** The setup script will attempt to install `uv` automatically if not found, but will fail if installation is unsuccessful.
-
-### 2. Install Dependencies
-
-We use [uv](https://docs.astral.sh/uv/) for fast package management:
+### Install the Package
 
 ```bash
-# Install uv (if not already installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Sync dependencies (automatically creates venv and installs dependencies)
-uv sync
+pip install bq-view-manager
 ```
 
-Or use the automated setup script (will auto-install uv if needed):
-```bash
-./setup.sh
-```
-
-### 3. Configure BigQuery
-
-Copy the configuration template and update with your settings:
+### Initialize a New Project
 
 ```bash
+# Create a new BigQuery view management project
+bq-view-manager init my-dwh-project
+
+# Navigate to your project
+cd my-dwh-project
+
+# Configure your project
 cp config.yaml.template config.yaml
+# Edit config.yaml with your BigQuery project details
 ```
 
-Edit `config.yaml` with your BigQuery project details:
+### Setup Authentication
 
+```bash
+# Authenticate with Google Cloud
+gcloud auth application-default login
+
+# Test your setup
+bq-view-deploy --dry-run
+```
+
+## 📝 Quick Start
+
+### 1. Initialize Your Project
+```bash
+bq-view-manager init analytics-views
+cd analytics-views
+```
+
+### 2. Configure BigQuery
+Edit `config.yaml`:
 ```yaml
 bigquery:
   project_id: "your-gcp-project-id"
-  dataset_id: "your_dataset_name"
+  dataset_id: "analytics"
   location: "US"
 ```
 
-### 4. Authentication
-
-Choose one of these authentication methods:
-
-#### Option A: Application Default Credentials (Recommended)
-```bash
-gcloud auth application-default login
-```
-
-#### Option B: Service Account Key
-1. Create a service account in Google Cloud Console
-2. Download the JSON key file
-3. Update `config.yaml`:
-   ```yaml
-   google_application_credentials: "/path/to/service-account-key.json"
-   ```
-
-The post-commit hook is now active and will deploy views automatically!
-
-## 📝 Usage
-
-### Adding SQL Views
-
-1. Create SQL files in the `sql/views/` directory using **simplified dbt-like syntax**:
-
-**Basic view (no dependencies):**
+### 3. Write Your First View
+Create `sql/views/user_events.sql`:
 ```sql
--- sql/views/user_actions.sql
 SELECT 
     user_id,
-    action_type,
-    action_timestamp,
-    session_id
+    event_type,
+    event_timestamp,
+    page_url
 FROM `your-project.raw_data.events`
-WHERE action_type IS NOT NULL
+WHERE event_timestamp >= CURRENT_DATE()
 ```
 
-**View with dependencies using ref() syntax:**
+### 4. Deploy Your Views
+```bash
+# Test deployment
+bq-view-deploy --dry-run
+
+# Deploy to BigQuery
+bq-view-deploy
+
+# Or use git (auto-deployment)
+git add sql/views/user_events.sql
+git commit -m "Add user events view"
+# 🚀 Automatically deployed via git hook!
+```
+
+## 🎯 Key Concepts
+
+### Simplified SQL Syntax
+Write clean SQL without boilerplate:
+
+**❌ Old way (traditional):**
 ```sql
--- sql/views/user_metrics.sql
-SELECT 
-    user_id,
-    COUNT(*) as total_actions,
-    MAX(action_timestamp) as last_action_date,
-    COUNT(DISTINCT session_id) as total_sessions
-FROM {{ ref('user_actions') }}
+CREATE OR REPLACE VIEW `project.dataset.user_metrics` AS
+SELECT user_id, COUNT(*) as events
+FROM `project.dataset.user_events`
+GROUP BY user_id;
+```
+
+**✅ New way (bq-view-manager):**
+```sql
+-- File: sql/views/user_metrics.sql
+SELECT user_id, COUNT(*) as events  
+FROM {{ ref('user_events') }}
 GROUP BY user_id
 ```
 
-**Multi-level dependency chain:**
+### Automatic Dependencies
+Views are deployed in the correct order automatically:
+
 ```sql
--- sql/views/user_summary.sql
+-- sql/views/events.sql (deployed first)
+SELECT * FROM `project.raw.events`
+
+-- sql/views/users.sql (deployed second) 
+SELECT user_id, COUNT(*) as event_count
+FROM {{ ref('events') }}
+GROUP BY user_id
+
+-- sql/views/summary.sql (deployed third)
 SELECT 
-    CASE 
-        WHEN total_actions >= 100 THEN 'High Activity'
-        WHEN total_actions >= 20 THEN 'Medium Activity'
-        ELSE 'Low Activity'
-    END as activity_level,
-    COUNT(*) as user_count,
-    AVG(total_actions) as avg_actions_per_user
-FROM {{ ref('user_metrics') }}
-GROUP BY activity_level
+    CASE WHEN event_count > 100 THEN 'active' ELSE 'inactive' END as user_type,
+    COUNT(*) as user_count
+FROM {{ ref('users') }}
+GROUP BY user_type
 ```
 
-**✨ How it works:**
-- **Filename = View name**: `user_actions.sql` → `user_actions` view
-- **Auto-wrapping**: System automatically adds `CREATE OR REPLACE VIEW` statement
-- **No boilerplate**: Just write your SELECT statement!
-- **Backwards compatible**: Files with existing `CREATE OR REPLACE VIEW` statements still work
+**Deployment Order**: `events` → `users` → `summary`
 
-2. Commit your changes:
+### Git-Based Workflow
+Changes are automatically deployed when you commit:
 
 ```bash
 git add sql/views/
-git commit -m "Add user views with dependencies"
+git commit -m "Update analytics views"  
+# 🚀 Views automatically deployed to BigQuery!
 ```
-
-3. The post-commit hook automatically deploys views in the correct order!
-
-### Manual Deployment
-
-You can also run deployments manually:
-
-```bash
-# Deploy all views
-bq-view-deploy
-
-# Dry run (see what would be deployed)
-bq-view-deploy --dry-run
-
-# Deploy specific files only
-bq-view-deploy --files sql/views/user_metrics.sql sql/views/sales.sql
-
-# Use different config file
-bq-view-deploy --config custom-config.yaml
-
-```
-
-### Testing Changes
-
-Use dry run mode to test your SQL without deploying:
-
-```bash
-bq-view-deploy --dry-run
-```
-
-## ⚙️ Configuration
-
-### config.yaml Options
-
-```yaml
-bigquery:
-  project_id: "your-gcp-project-id"    # Required
-  dataset_id: "your_dataset_name"       # Required (for reference)
-  location: "US"                        # Optional, default: US
-
-sql:
-  views_directory: "sql/views"          # Directory to scan for view files
-  compiled_directory: "compiled/views"  # Output directory for compiled SQL
-  
-  include_patterns:                     # File patterns to include
-    - "*.sql"
-  
-  exclude_patterns:                     # File patterns to exclude
-    - "*.backup.sql"
-
-deployment:
-  dry_run: false                       # Dry run mode
-  verbose: true                        # Verbose logging
-  save_compiled: true                  # Save compiled SQL with resolved refs
-```
-
-### Environment Variables
-
-- `GOOGLE_APPLICATION_CREDENTIALS`: Path to service account key
-- `GOOGLE_CLOUD_PROJECT`: Default GCP project ID
-
-## 🔗 dbt-like ref() Functionality
-
-### Using ref() Syntax
-
-Reference other views using Jinja2 template syntax:
-
-```sql
--- Instead of hardcoding table references:
-SELECT * FROM `project.dataset.other_view`
-
--- Use ref() for dynamic resolution:
-SELECT * FROM {{ ref('other_view') }}
-```
-
-### Benefits
-
-- **Automatic dependency resolution**: Views are deployed in the correct order
-- **Environment flexibility**: References adapt to different projects/datasets
-- **Maintainability**: Change table names in one place (the CREATE statement)
-- **Validation**: Detect broken references before deployment
-
-### Reference Resolution
-
-The `ref()` function resolves view names using this logic:
-
-1. **Exact match**: If the referenced view exists in your views directory
-2. **Config defaults**: Uses `project_id` and `dataset_id` from `config.yaml`
-3. **Cross-project**: Explicitly specify project: `{{ ref('view_name', project='other-project') }}`
-
-### Dependency Validation
-
-```bash
-# Validate all references are correct
-bq-view-deploy --validate-refs
-
-# Show dependency graph and deployment order
-bq-view-deploy --show-deps
-```
-
-### Example Dependency Chain
-
-```sql
--- Base view (no dependencies)
--- sql/views/events.sql
-CREATE OR REPLACE VIEW `project.dataset.events` AS
-SELECT * FROM `project.raw.events_table`;
-
--- Depends on events
--- sql/views/user_sessions.sql  
-CREATE OR REPLACE VIEW `project.dataset.user_sessions` AS
-SELECT 
-    user_id,
-    COUNT(*) as session_count
-FROM {{ ref('events') }}
-GROUP BY user_id;
-
--- Depends on user_sessions
--- sql/views/user_summary.sql
-CREATE OR REPLACE VIEW `project.dataset.user_summary` AS
-SELECT 
-    CASE WHEN session_count >= 10 THEN 'Active' ELSE 'Inactive' END as user_type,
-    COUNT(*) as user_count
-FROM {{ ref('user_sessions') }}
-GROUP BY user_type;
-```
-
-**Deployment Order**: `events` → `user_sessions` → `user_summary`
-
-### Compiled SQL Output
-
-When `save_compiled: true` is enabled in config, the system automatically saves compiled SQL files (with resolved `ref()` calls) to the `compiled/` directory:
-
-```bash
-# Compile SQL without deploying
-bq-view-deploy --compile-only
-# OR
-make compile
-
-# Files are saved to compiled/views/ with resolved references
-compiled/views/
-├── user_sessions.sql  # Auto-wrapped + {{ ref('events') }} → `project.dataset.events`
-└── user_summary.sql   # Auto-wrapped + {{ ref('user_sessions') }} → `project.dataset.user_sessions`
-```
-
-**Benefits:**
-- **Debug templates** - See exactly what SQL is executed (including auto-wrapping)
-- **Manual testing** - Copy compiled SQL to BigQuery console  
-- **Transparency** - Understand how ref() calls are resolved
-- **Auto-wrapping visibility** - See the generated CREATE OR REPLACE VIEW statements
-- **Version control** - Track compiled changes (though usually gitignored)
 
 ## 🔧 Commands
 
-### CLI Commands
+### Package Commands
+
 | Command | Description |
 |---------|-------------|
-| `bq-view-deploy` | Deploy all SQL views |
-| `bq-view-deploy --dry-run` | Preview deployments without executing |
+| `bq-view-manager init PROJECT` | Initialize a new project |
+| `bq-view-manager --help` | Show help |
+
+### Project Commands (inside your project)
+
+| Command | Description |
+|---------|-------------|
+| `bq-view-deploy` | Deploy all views |
+| `bq-view-deploy --dry-run` | Preview deployments |
 | `bq-view-deploy --files FILE1 FILE2` | Deploy specific files only |
 | `bq-view-deploy --validate-refs` | Validate all ref() references |
 | `bq-view-deploy --show-deps` | Show dependency graph and deployment order |
 | `bq-view-deploy --compile-only` | Compile templates to compiled/ directory |
-| `bq-view-deploy --version` | Show version information |
 | `bq-view-deploy --config FILE` | Use custom config file |
-| `bq-view-deploy --help` | Show detailed help with examples |
 
-### Make Commands
+### Make Commands (inside your project)
+
 | Command | Description |
 |---------|-------------|
-| `make` or `make help` | Show available commands |
 | `make deploy` | Deploy all views |
 | `make dry-run` | Preview deployments |
 | `make check` | Validate SQL syntax |
@@ -338,106 +177,92 @@ compiled/views/
 | `make setup` | Run setup script |
 | `make clean` | Clean build artifacts |
 
+## 📁 Project Structure
 
-## 🎯 Workflow Examples
+When you run `bq-view-manager init my-project`, you get:
 
-### Adding a New View
+```
+my-project/
+├── sql/views/              # Your SQL view files
+│   ├── example_view.sql    # Example view
+│   └── user_metrics.sql    # Example with ref()
+├── config.yaml.template   # Configuration template
+├── config.yaml           # Your configuration (created from template)
+├── Makefile              # Helpful commands
+├── README.md             # Project-specific documentation  
+├── .gitignore            # Excludes compiled/ and config files
+├── .git/hooks/
+│   └── post-commit       # Auto-deployment git hook
+└── compiled/views/       # Auto-generated compiled SQL (gitignored)
+```
+
+## 🔍 Advanced Features
+
+### Compiled SQL Output
+
+See exactly what SQL is executed:
 
 ```bash
-# 1. Create SQL file
-cat > sql/views/sales_summary.sql << EOF
-CREATE OR REPLACE VIEW \`project.dataset.sales_summary\` AS
-SELECT 
-    DATE(order_date) as sale_date,
-    SUM(amount) as total_sales,
-    COUNT(*) as order_count
-FROM \`project.dataset.orders\`
-GROUP BY DATE(order_date);
-EOF
-
-# 2. Commit and auto-deploy
-git add sql/views/sales_summary.sql
-git commit -m "Add sales summary view"
-# ✅ View automatically deployed to BigQuery!
+bq-view-deploy --compile-only
 ```
 
-### Updating an Existing View
+Files are saved to `compiled/views/` with resolved `ref()` calls:
+
+```sql
+-- compiled/views/user_metrics.sql
+-- Compiled SQL from: sql/views/user_metrics.sql
+-- Generated by BigQuery View Manager
+-- DO NOT EDIT: This file is auto-generated
+
+CREATE OR REPLACE VIEW `your-project.analytics.user_metrics` AS
+SELECT user_id, COUNT(*) as events  
+FROM `your-project.analytics.user_events`  -- ref() resolved!
+GROUP BY user_id
+```
+
+### Dependency Visualization
 
 ```bash
-# 1. Edit the SQL file
-vim sql/views/user_summary.sql
-
-# 2. Commit changes
-git add sql/views/user_summary.sql
-git commit -m "Update user summary view with new metrics"
-# ✅ View automatically updated in BigQuery!
+bq-view-deploy --show-deps
 ```
 
-## 🚨 Troubleshooting
+Output:
+```
+Dependency Graph:
+  user_events (no dependencies)
+  user_metrics → user_events
+  user_summary → user_metrics
 
-### Common Issues
+Deployment Order:
+  1. user_events
+  2. user_metrics  
+  3. user_summary
+```
 
-#### Authentication Errors
+### Reference Validation
+
 ```bash
-# Re-authenticate with gcloud
-gcloud auth application-default login
-
-# Or check service account key path
-echo $GOOGLE_APPLICATION_CREDENTIALS
+bq-view-deploy --validate-refs
 ```
 
-#### Permission Errors
-Ensure your account has these BigQuery permissions:
-- `bigquery.datasets.get`
-- `bigquery.tables.create`
-- `bigquery.tables.update`
-- `bigquery.tables.get`
-
-#### Git Hook Not Running
-```bash
-# Check if hook is executable
-ls -la .git/hooks/post-commit
-
-# Make executable if needed
-chmod +x .git/hooks/post-commit
-```
-
-#### View Deployment Failures
-```bash
-# Run with verbose output
-uv run python -m bq_view_manager.main
-
-# Check SQL syntax in BigQuery console
-# Verify table references exist
-```
-
-### Debugging
-
-Enable verbose logging in `config.yaml`:
-```yaml
-deployment:
-  verbose: true
-```
-
-Or run with dry run to see what would be executed:
-```bash
-uv run python -m bq_view_manager.main --dry-run
-```
+Validates all `{{ ref('view_name') }}` calls before deployment.
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
+1. Fork this repository
+2. Create a feature branch
 3. Make your changes
-4. Add tests for new functionality
-5. Commit your changes: `git commit -m 'Add feature'`
-6. Push to the branch: `git push origin feature-name`
-7. Submit a pull request
+4. Add tests
+5. Submit a pull request
 
-## 📄 License
+## 📜 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License - see LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+Inspired by dbt's approach to data transformation, adapted for BigQuery view management with git-based workflows.
 
 ---
 
-**Happy SQL coding! 🎉**
+**Made with ❤️ for the BigQuery community**

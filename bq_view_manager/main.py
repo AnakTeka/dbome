@@ -4,20 +4,21 @@ Main script for managing BigQuery views from SQL files
 """
 
 import os
-import sys
-import yaml
-import glob
 import re
+import sys
+import glob
+import yaml
+import tempfile
+import shutil
+import subprocess
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Dict, List, Optional, Any
 from google.cloud import bigquery
-from google.auth import default
+from sqlglot import parse_one, ParseError
+from sqlglot import expressions as exp
 from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
-import sqlglot
-from sqlglot import exp, parse_one
-from sqlglot.errors import ParseError
 
 from . import __version__
 from .template_compiler import SQLTemplateCompiler
@@ -328,6 +329,110 @@ class BigQueryViewManager:
         console.print(f"Successfully {result_text} {success_count}/{len(processed_files)} views")
 
 
+def init_project(project_name: str) -> None:
+    """Initialize a new BigQuery View Manager project"""
+    project_path = Path(project_name)
+    
+    if project_path.exists():
+        console.print(f"[red]Error: Directory '{project_name}' already exists![/red]")
+        sys.exit(1)
+    
+    console.print(f"[bold blue]🚀 Initializing BigQuery View Manager project: {project_name}[/bold blue]\n")
+    
+    try:
+        # Create project directory
+        project_path.mkdir(parents=True)
+        console.print(f"[green]📁 Created directory: {project_path}[/green]")
+        
+        # Get templates directory
+        templates_dir = Path(__file__).parent / "templates"
+        
+        if not templates_dir.exists():
+            console.print(f"[red]Error: Templates directory not found at {templates_dir}[/red]")
+            sys.exit(1)
+        
+        # Copy template files
+        files_to_copy = [
+            ("config.yaml.template", "config.yaml.template"),
+            ("setup.sh", "setup.sh"),
+            ("Makefile", "Makefile"),
+            (".gitignore.template", ".gitignore"),
+            ("post-commit", ".git/hooks/post-commit"),
+        ]
+        
+        for src_name, dst_name in files_to_copy:
+            src_path = templates_dir / src_name
+            dst_path = project_path / dst_name
+            
+            if src_path.exists():
+                # Create parent directory if needed (e.g., .git/hooks/)
+                dst_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src_path, dst_path)
+                
+                # Make post-commit hook executable
+                if dst_name.endswith("post-commit"):
+                    os.chmod(dst_path, 0o755)
+                    console.print(f"[green]🔗 Installed git hook: {dst_name}[/green]")
+                else:
+                    console.print(f"[green]📄 Created: {dst_name}[/green]")
+        
+        # Copy SQL directory structure
+        sql_src = templates_dir / "sql"
+        sql_dst = project_path / "sql"
+        if sql_src.exists():
+            shutil.copytree(sql_src, sql_dst)
+            console.print(f"[green]📁 Created SQL directory with examples[/green]")
+        
+        # Create README from template
+        readme_template = templates_dir / "README.md.template"
+        readme_dst = project_path / "README.md"
+        if readme_template.exists():
+            with open(readme_template, 'r') as f:
+                content = f.read()
+            # Replace project name placeholder
+            content = content.replace("{PROJECT_NAME}", project_name)
+            with open(readme_dst, 'w') as f:
+                f.write(content)
+            console.print(f"[green]📚 Created README.md[/green]")
+        
+        # Initialize git repository
+        os.chdir(project_path)
+        subprocess.run(["git", "init"], check=True, capture_output=True)
+        console.print(f"[green]🔄 Initialized git repository[/green]")
+        
+        # Configure git user if not set (for initial commit)
+        try:
+            subprocess.run(["git", "config", "user.name"], check=True, capture_output=True)
+        except subprocess.CalledProcessError:
+            subprocess.run(["git", "config", "user.name", "BigQuery View Manager"], check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.email", "bq-view-manager@example.com"], check=True, capture_output=True)
+        
+        # Create initial commit
+        subprocess.run(["git", "add", "."], check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial commit: BigQuery View Manager project"], 
+                      check=True, capture_output=True)
+        console.print(f"[green]✅ Created initial commit[/green]")
+        
+        console.print(f"\n[bold green]🎉 Project '{project_name}' initialized successfully![/bold green]")
+        console.print(f"\n[bold blue]Next steps:[/bold blue]")
+        console.print(f"1. [cyan]cd {project_name}[/cyan]")
+        console.print(f"2. [cyan]cp config.yaml.template config.yaml[/cyan]")
+        console.print(f"3. Edit config.yaml with your BigQuery project details")
+        console.print(f"4. [cyan]gcloud auth application-default login[/cyan]")
+        console.print(f"5. [cyan]bq-view-deploy --dry-run[/cyan]")
+        console.print(f"\n[dim]For more help, see README.md in your new project![/dim]")
+        
+    except subprocess.CalledProcessError as e:
+        console.print(f"[red]Error running git command: {e}[/red]")
+        sys.exit(1)
+    except Exception as e:
+        console.print(f"[red]Error initializing project: {e}[/red]")
+        # Clean up on error
+        if project_path.exists():
+            shutil.rmtree(project_path)
+        sys.exit(1)
+
+
 def main():
     """Main entry point"""
     import argparse
@@ -337,6 +442,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  bq-view-manager init my-project    Initialize a new project
   bq-view-deploy                     Deploy all views
   bq-view-deploy --dry-run           Preview what would be deployed
   bq-view-deploy --files view1.sql   Deploy specific files only
@@ -348,6 +454,15 @@ Examples:
 For more help, visit: https://github.com/your-repo/bq-view-manager
         """
     )
+    
+    # Add subcommands
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    
+    # Init subcommand
+    init_parser = subparsers.add_parser('init', help='Initialize a new BigQuery View Manager project')
+    init_parser.add_argument('project_name', help='Name of the project directory to create')
+    
+    # If no subcommand provided, treat as deployment command (backwards compatibility)
     
     parser.add_argument(
         "--version", 
@@ -388,6 +503,11 @@ For more help, visit: https://github.com/your-repo/bq-view-manager
     )
     
     args = parser.parse_args()
+    
+    # Handle init command
+    if args.command == 'init':
+        init_project(args.project_name)
+        return
     
     # Load and potentially modify config
     config_path = args.config

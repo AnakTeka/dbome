@@ -1,7 +1,7 @@
 [project]
 name = "bq-view-manager"
 version = "0.1.0"
-description = "Git-based BigQuery View Management using CREATE OR REPLACE VIEW syntax"
+description = "A dbt-like BigQuery View Manager with simplified SQL syntax, dependency resolution, and git-based workflows"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -21,6 +21,7 @@ test = [
 ]
 
 [project.scripts]
+bq-view-manager = "bq_view_manager.main:main"
 bq-view-deploy = "bq_view_manager.main:main"
 
 [build-system]
