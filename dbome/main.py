@@ -69,17 +69,48 @@ class BigQueryViewManager:
         if specific_files:
             # Process only the specified files
             sql_files = []
-            for file_path in specific_files:
-                path = Path(file_path)
-                if path.exists() and path.suffix.lower() == '.sql':
-                    # Check if file is in views directory
-                    try:
-                        path.relative_to(self.config['sql']['views_directory'])
-                        sql_files.append(path)
-                    except ValueError:
-                        console.print(f"[yellow]Warning: {file_path} is not in views directory, skipping[/yellow]")
-                else:
-                    console.print(f"[yellow]Warning: {file_path} does not exist or is not a SQL file, skipping[/yellow]")
+            views_directory = Path(self.config['sql']['views_directory'])
+            
+            for file_input in specific_files:
+                found = False
+                
+                # Try different resolution strategies
+                candidates = []
+                
+                # 1. Exact path as given
+                candidates.append(Path(file_input))
+                
+                # 2. If it's just a name (no path separators), try in views directory
+                if '/' not in file_input and '\\' not in file_input:
+                    # Add .sql extension if missing
+                    if not file_input.endswith('.sql'):
+                        candidates.append(views_directory / f"{file_input}.sql")
+                    candidates.append(views_directory / file_input)
+                
+                # 3. If it has .sql but no path, try in views directory
+                elif file_input.endswith('.sql') and '/' not in file_input and '\\' not in file_input:
+                    candidates.append(views_directory / file_input)
+                
+                # Try each candidate
+                for candidate in candidates:
+                    if candidate.exists() and candidate.suffix.lower() == '.sql':
+                        # Check if file is in views directory or subdirectory
+                        try:
+                            candidate.relative_to(views_directory)
+                            sql_files.append(candidate)
+                            found = True
+                            break
+                        except ValueError:
+                            # File exists but not in views directory, try full path
+                            if candidate == Path(file_input):
+                                sql_files.append(candidate)
+                                found = True
+                                break
+                
+                if not found:
+                    console.print(f"[yellow]Warning: Could not find SQL file for '{file_input}', skipping[/yellow]")
+                    console.print(f"[dim]  Tried: {[str(c) for c in candidates]}[/dim]")
+            
             return sorted(sql_files)
         
         # Default behavior: find all SQL files
@@ -526,7 +557,10 @@ Examples:
   dbome init my-project              Initialize a new project directory
   dbome run                          Deploy all views
   dbome run --dry                    Preview what would be deployed
-  dbome run --select view1.sql       Deploy specific files only
+  dbome run user_metrics             Deploy specific view by name
+  dbome run user_metrics.sql         Deploy specific view by filename
+  dbome run user_metrics user_actions Deploy multiple views
+  dbome run --select view1.sql       Deploy using --select flag
   dbome compile                      Compile templates to compiled/ directory
   dbome deps                         Show dependency graph
   dbome validate                     Validate all ref() references
@@ -545,6 +579,12 @@ For more help, visit: https://github.com/your-repo/dbome
     # Run subcommand
     run_parser = subparsers.add_parser('run', help='Deploy SQL views to BigQuery')
     run_parser.add_argument(
+        "views", 
+        nargs="*", 
+        help="View names or files to deploy (e.g., user_metrics, user_metrics.sql)",
+        metavar="VIEW"
+    )
+    run_parser.add_argument(
         "--config", 
         default="config.yaml", 
         help="Path to config file (default: config.yaml)",
@@ -558,7 +598,7 @@ For more help, visit: https://github.com/your-repo/dbome
     run_parser.add_argument(
         "--select", 
         nargs="+", 
-        help="Specific SQL files to process (default: all files in views directory)",
+        help="Specific SQL files to process (alternative to positional args)",
         metavar="FILE"
     )
     
@@ -648,11 +688,13 @@ For more help, visit: https://github.com/your-repo/dbome
     try:
         manager = BigQueryViewManager(config_path)
         
-        # Get selected files
-        selected_files = getattr(args, 'select', None)
+        # Get selected files (combine positional args and --select)
+        selected_files = getattr(args, 'select', None) or []
+        if args.command == 'run' and hasattr(args, 'views') and args.views:
+            selected_files = selected_files + args.views if selected_files else args.views
         
         if args.command == 'run':
-            manager.deploy_views(selected_files)
+            manager.deploy_views(selected_files if selected_files else None)
         
         elif args.command == 'compile':
             sql_files = manager.find_sql_files(selected_files)

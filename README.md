@@ -124,6 +124,11 @@ uv run dbome run --dry
 # Deploy to BigQuery
 uv run dbome run
 
+# Deploy specific views (multiple syntax options)
+uv run dbome run user_events          # By view name
+uv run dbome run user_events.sql      # By filename
+uv run dbome run user_events user_metrics  # Multiple views
+
 # Or use git (auto-deployment)
 git add sql/views/user_events.sql
 git commit -m "Add user events view"
@@ -191,6 +196,7 @@ git commit -m "Update analytics views"
 | `dbome` | Show help |
 | `dbome init` | Initialize a new project in current directory |
 | `dbome run` | Deploy all views |
+| `dbome run view_name` | Deploy specific view by name |
 | `dbome compile` | Compile templates |
 | `dbome deps` | Show dependencies |
 | `dbome validate` | Validate references |
@@ -202,7 +208,10 @@ git commit -m "Update analytics views"
 | `uv run dbome` | Show help |
 | `uv run dbome run` | Deploy all views |
 | `uv run dbome run --dry` | Preview deployments |
-| `uv run dbome run --select FILE1 FILE2` | Deploy specific files only |
+| `uv run dbome run user_metrics` | Deploy specific view by name |
+| `uv run dbome run user_metrics.sql` | Deploy specific view by filename |
+| `uv run dbome run view1 view2` | Deploy multiple views |
+| `uv run dbome run --select FILE1 FILE2` | Deploy using --select flag |
 | `uv run dbome validate` | Validate all ref() references |
 | `uv run dbome deps` | Show dependency graph and deployment order |
 | `uv run dbome compile` | Compile templates to compiled/ directory |
