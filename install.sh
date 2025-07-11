@@ -130,8 +130,6 @@ dependencies = [
 ]
 requires-python = ">=3.8"
 
-[tool.uv.sources]
-dbome = { path = "/home/yoga/tmp/people/andre" }
 
 EOF
     success "Created pyproject.toml"
