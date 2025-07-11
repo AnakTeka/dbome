@@ -14,6 +14,7 @@ help:
 	@echo "  make deploy      Deploy all views to BigQuery"
 	@echo "  make dry-run     Show what would be deployed (no changes)"
 	@echo "  make check       Validate SQL syntax without deploying"
+	@echo "  make compile     Compile SQL templates to compiled/ directory"
 	@echo ""
 	@echo "🧪 Testing:"
 	@echo "  make test        Run all tests"
@@ -58,6 +59,11 @@ dry-run:
 
 # Check/validate SQL files
 check: dry-run
+
+# Compile SQL templates without deploying
+compile:
+	@echo "📄 Compiling SQL templates..."
+	@bq-view-deploy --compile-only
 
 # Clean build artifacts
 clean:
