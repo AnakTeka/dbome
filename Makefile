@@ -31,12 +31,12 @@ setup:
 # Install the package
 install:
 	@echo "📦 Installing package..."
-	@uv pip install .
+	@uv sync --frozen
 
 # Install in development mode
 dev-install:
 	@echo "📦 Installing in development mode..."
-	@uv pip install -e .
+	@uv sync
 
 # Deploy all views
 deploy:

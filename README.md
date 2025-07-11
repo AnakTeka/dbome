@@ -37,9 +37,11 @@ bq-view-manager/
 ### 1. Prerequisites
 
 - Python 3.11.x or higher
-- [uv](https://docs.astral.sh/uv/) for fast package management (auto-installed by setup script)
+- [uv](https://docs.astral.sh/uv/) for fast package management (**required**)
 - Google Cloud SDK installed and authenticated
 - BigQuery dataset created in your GCP project
+
+**Note:** The setup script will attempt to install `uv` automatically if not found, but will fail if installation is unsuccessful.
 
 ### 2. Install Dependencies
 
@@ -49,12 +51,11 @@ We use [uv](https://docs.astral.sh/uv/) for fast package management:
 # Install uv (if not already installed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Create virtual environment and install dependencies
-uv venv
-uv pip install -e .
+# Sync dependencies (automatically creates venv and installs dependencies)
+uv sync
 ```
 
-Or use the automated setup script:
+Or use the automated setup script (will auto-install uv if needed):
 ```bash
 ./setup.sh
 ```

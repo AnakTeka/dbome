@@ -8,19 +8,6 @@ set -e  # Exit on error
 echo "🚀 Setting up BigQuery View Manager"
 echo "=================================="
 
-# Check if Python is available
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Python 3 is required but not installed."
-    exit 1
-fi
-
-# Check Python version
-python_version=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
-echo "✅ Found Python $python_version"
-
-if [ "$(printf '%s\n' "3.11" "$python_version" | sort -V | head -n1)" != "3.11" ]; then
-    echo "⚠️  Warning: Python 3.11+ is recommended. Current version: $python_version"
-fi
 
 # Check if uv is installed
 if ! command -v uv &> /dev/null; then
@@ -28,8 +15,16 @@ if ! command -v uv &> /dev/null; then
     curl -LsSf https://astral.sh/uv/install.sh | sh
     source ~/.cargo/env 2>/dev/null || true
     
+    # Verify uv installation was successful
     if ! command -v uv &> /dev/null; then
-        echo "❌ Failed to install uv. Please install manually: https://docs.astral.sh/uv/getting-started/installation/"
+        echo "❌ Failed to install uv. This project requires uv to work properly."
+        echo ""
+        echo "Please install uv manually:"
+        echo "  curl -LsSf https://astral.sh/uv/install.sh | sh"
+        echo ""
+        echo "Or visit: https://docs.astral.sh/uv/getting-started/installation/"
+        echo ""
+        echo "Setup cannot continue without uv. Exiting..."
         exit 1
     fi
     echo "✅ uv installed successfully"
@@ -38,21 +33,11 @@ else
 fi
 
 
-# Create virtual environment with uv
+# Sync dependencies with uv
 echo ""
-echo "📦 Creating virtual environment with uv..."
-if [ ! -d ".venv" ]; then
-    uv venv
-    echo "✅ Virtual environment created"
-else
-    echo "✅ Virtual environment already exists"
-fi
-
-# Install dependencies with uv
-echo ""
-echo "📦 Installing dependencies with uv..."
-uv pip install -e .
-echo "✅ Dependencies installed"
+echo "📦 Syncing dependencies with uv..."
+uv sync
+echo "✅ Dependencies synced"
 
 # Create config file if it doesn't exist
 echo ""
