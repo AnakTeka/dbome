@@ -37,12 +37,6 @@ else
     echo "✅ Found uv"
 fi
 
-# Check if gcloud is installed
-if ! command -v gcloud &> /dev/null; then
-    echo "⚠️  Warning: gcloud CLI not found. Install it from https://cloud.google.com/sdk/docs/install"
-else
-    echo "✅ Found gcloud CLI"
-fi
 
 # Create virtual environment with uv
 echo ""
@@ -71,43 +65,20 @@ else
     echo "✅ config.yaml already exists"
 fi
 
-# Initialize git repository if not exists
-echo ""
-echo "🔄 Setting up Git repository..."
-if [ ! -d ".git" ]; then
-    git init
-    echo "✅ Git repository initialized"
-else
-    echo "✅ Git repository already exists"
-fi
-
 # Make sure git hook is executable
 if [ -f ".git/hooks/post-commit" ]; then
     chmod +x .git/hooks/post-commit
     echo "✅ Git post-commit hook is executable"
 fi
 
-# Test authentication (if gcloud is available)
-echo ""
-echo "🔐 Checking authentication..."
-if command -v gcloud &> /dev/null; then
-    if gcloud auth application-default print-access-token &> /dev/null; then
-        echo "✅ Application Default Credentials are configured"
-    else
-        echo "⚠️  Application Default Credentials not found"
-        echo "📝 Run: gcloud auth application-default login"
-    fi
-fi
 
 echo ""
 echo "🎉 Setup completed!"
 echo ""
 echo "Next steps:"
 echo "1. Edit config.yaml with your BigQuery project details"
-echo "2. Authenticate with Google Cloud:"
-echo "   gcloud auth application-default login"
-echo "3. Add your SQL view files (using CREATE OR REPLACE VIEW syntax) to sql/views/"
-echo "4. Commit changes to auto-deploy views:"
+echo "2. Add your SQL view files (using CREATE OR REPLACE VIEW syntax) to sql/views/"
+echo "3. Commit changes to auto-deploy views:"
 echo "   git add ."
 echo "   git commit -m 'Initial SQL views'"
 echo ""
