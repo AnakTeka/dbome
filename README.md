@@ -20,41 +20,63 @@ A dbt-like tool with simplified SQL syntax, dependency resolution, and git-based
 
 ## 🚀 Installation
 
-### Install the Package
+### 🎯 One-Line Install (Recommended)
+
+The easiest way to get started - **perfect for data scientists** and quick setup:
+
+> **💡 Why this approach?** Many data scientists work in environments like SageMaker, Colab, or other hosted notebooks where they need a quick, reliable way to set up tools without worrying about Python package management. This installer handles everything for you!
 
 ```bash
-pip install dbome
+# Install in current directory
+curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash
+
+# Or create a new project directory
+curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash -s -- --project-name my-analytics
 ```
 
-### Initialize a New Project
+This will:
+- ✅ Install `uv` (if not already installed)
+- ✅ Create a Python project with `dbome` as dependency
+- ✅ Initialize dbome project with templates
+- ✅ Set up git repository with auto-deployment hooks
+- ✅ Provide example SQL files to get you started
+
+**Perfect for SageMaker, Colab, or any Linux/macOS environment!**
+
+### 📦 Manual Installation
+
+If you prefer to install manually:
 
 ```bash
-# Create a new BigQuery view management project
+# Option 1: Install via pip
+pip install dbome
 dbome init my-dwh-project
 
-# Navigate to your project
+# Option 2: Install via uv (recommended for Python projects)
+uv init my-dwh-project
 cd my-dwh-project
-
-# Configure your project
-cp config.yaml.template config.yaml
-# Edit config.yaml with your BigQuery project details
+uv add dbome
+uv run dbome init
 ```
 
-### Setup Authentication
+### 🔑 Setup Authentication
 
 ```bash
 # Authenticate with Google Cloud
 gcloud auth application-default login
 
 # Test your setup
-dbome --dry-run
+uv run dbome --dry-run  # if using uv
+# or
+dbome --dry-run         # if using pip
 ```
 
 ## 📝 Quick Start
 
-### 1. Initialize Your Project
+### 1. One-Line Install (Perfect for Data Scientists! 🔬)
 ```bash
-dbome init analytics-views
+# Create a new analytics project
+curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash -s -- --project-name analytics-views
 cd analytics-views
 ```
 
@@ -82,10 +104,10 @@ WHERE event_timestamp >= CURRENT_DATE()
 ### 4. Deploy Your Views
 ```bash
 # Test deployment
-dbome --dry-run
+uv run dbome --dry-run
 
 # Deploy to BigQuery
-dbome
+uv run dbome
 
 # Or use git (auto-deployment)
 git add sql/views/user_events.sql
@@ -158,13 +180,15 @@ git commit -m "Update analytics views"
 
 | Command | Description |
 |---------|-------------|
-| `dbome` | Deploy all views |
-| `dbome --dry-run` | Preview deployments |
-| `dbome --files FILE1 FILE2` | Deploy specific files only |
-| `dbome --validate-refs` | Validate all ref() references |
-| `dbome --show-deps` | Show dependency graph and deployment order |
-| `dbome --compile-only` | Compile templates to compiled/ directory |
-| `dbome --config FILE` | Use custom config file |
+| `uv run dbome` | Deploy all views |
+| `uv run dbome --dry-run` | Preview deployments |
+| `uv run dbome --files FILE1 FILE2` | Deploy specific files only |
+| `uv run dbome --validate-refs` | Validate all ref() references |
+| `uv run dbome --show-deps` | Show dependency graph and deployment order |
+| `uv run dbome --compile-only` | Compile templates to compiled/ directory |
+| `uv run dbome --config FILE` | Use custom config file |
+
+> **Note**: If you installed via pip, replace `uv run dbome` with just `dbome`
 
 ### Make Commands (inside your project)
 
