@@ -55,6 +55,13 @@ class TestBigQueryViewManager:
     @patch('bq_view_manager.main.bigquery.Client')
     def test_initialize_client_success(self, mock_client_class, config_file):
         """Test successful BigQuery client initialization"""
+        # Set dry_run to False to trigger client initialization
+        with open(config_file, 'r') as f:
+            config = yaml.safe_load(f)
+        config['deployment']['dry_run'] = False
+        with open(config_file, 'w') as f:
+            yaml.dump(config, f)
+        
         mock_client = Mock()
         mock_client_class.return_value = mock_client
         
@@ -69,8 +76,9 @@ class TestBigQueryViewManager:
     @patch('bq_view_manager.main.bigquery.Client')
     def test_initialize_client_with_credentials(self, mock_client_class, temp_dir, sample_config):
         """Test client initialization with credentials file"""
-        # Add credentials to config
+        # Add credentials to config and set dry_run to False
         sample_config['google_application_credentials'] = '/path/to/creds.json'
+        sample_config['deployment']['dry_run'] = False
         
         config_path = temp_dir / "config_with_creds.yaml"
         with open(config_path, 'w') as f:
@@ -87,6 +95,13 @@ class TestBigQueryViewManager:
     @patch('bq_view_manager.main.bigquery.Client')
     def test_initialize_client_failure(self, mock_client_class, config_file):
         """Test BigQuery client initialization failure"""
+        # Set dry_run to False to trigger client initialization
+        with open(config_file, 'r') as f:
+            config = yaml.safe_load(f)
+        config['deployment']['dry_run'] = False
+        with open(config_file, 'w') as f:
+            yaml.dump(config, f)
+        
         mock_client_class.side_effect = Exception("Authentication failed")
         
         with pytest.raises(SystemExit):
@@ -129,6 +144,13 @@ class TestBigQueryViewManager:
     def test_find_sql_files_nonexistent_directory(self, config_file):
         """Test finding SQL files in non-existent directory"""
         with patch('bq_view_manager.main.bigquery.Client'):
+            # Update config to point to nonexistent directory
+            with open(config_file, 'r') as f:
+                config = yaml.safe_load(f)
+            config['sql']['views_directory'] = '/nonexistent/directory'
+            with open(config_file, 'w') as f:
+                yaml.dump(config, f)
+            
             manager = BigQueryViewManager(str(config_file))
             sql_files = manager.find_sql_files()
             
@@ -161,12 +183,14 @@ class TestBigQueryViewManager:
         with patch('bq_view_manager.main.bigquery.Client'):
             manager = BigQueryViewManager(str(config_file))
             
-            # Mock SQLGlot parsing
-            mock_ast = Mock()
+            # Mock SQLGlot parsing with proper type
+            from sqlglot import expressions as exp
+            
+            mock_ast = Mock(spec=exp.Create)
             mock_ast.kind = "VIEW"
-            mock_ast.this = Mock()
-            mock_ast.this.name = "test_view"
-            mock_ast.this.sql.return_value = "`test-project.test_dataset.test_view`"
+            mock_ast.this = Mock(spec=exp.Table)
+            mock_ast.this.name = "base_events"  # Match the actual file name
+            mock_ast.this.sql.return_value = "`test-project.test_dataset.base_events`"
             mock_ast.this.catalog = "test-project"
             mock_ast.this.db = "test_dataset"
             
@@ -176,7 +200,7 @@ class TestBigQueryViewManager:
             result = manager.parse_sql_file(sql_file)
             
             assert result is not None
-            assert result['name'] == 'test_view'
+            assert result['name'] == 'base_events'
             assert result['project_id'] == 'test-project'
             assert result['dataset_id'] == 'test_dataset'
             assert 'raw_content' in result
@@ -202,7 +226,9 @@ class TestBigQueryViewManager:
             manager = BigQueryViewManager(str(config_file))
             
             # Mock parsing a CREATE TABLE instead of VIEW
-            mock_ast = Mock()
+            from sqlglot import expressions as exp
+            
+            mock_ast = Mock(spec=exp.Create)
             mock_ast.kind = "TABLE"  # Not a VIEW
             mock_parse_one.return_value = mock_ast
             

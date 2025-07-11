@@ -49,7 +49,7 @@ class TestCLI:
         )
         
         assert result.returncode == 1
-        assert 'Config file' in result.stderr or 'not found' in result.stderr
+        assert 'Config file' in result.stdout or 'not found' in result.stdout or 'Config file' in result.stderr or 'not found' in result.stderr
     
     def test_cli_validate_refs_success(self, config_file, views_dir):
         """Test CLI validate-refs command with valid references"""

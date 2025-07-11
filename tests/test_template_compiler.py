@@ -101,7 +101,7 @@ class TestSQLTemplateCompiler:
         
         sql = "SELECT * FROM {{ ref('events') }}"
         
-        compiled = compiler.compile_sql(sql, 'test_view')
+        compiled = compiler.compile_sql(sql, 'test_view', auto_wrap=False)
         
         assert compiled == "SELECT * FROM `test-project.test_dataset.events`"
     
@@ -120,7 +120,7 @@ class TestSQLTemplateCompiler:
         GROUP BY u.user_id
         """
         
-        compiled = compiler.compile_sql(sql, 'test_view')
+        compiled = compiler.compile_sql(sql, 'test_view', auto_wrap=False)
         
         assert '`test-project.test_dataset.users`' in compiled
         assert '`test-project.test_dataset.events`' in compiled
@@ -134,7 +134,32 @@ class TestSQLTemplateCompiler:
         sql = "SELECT * FROM {{ ref('events') "  # Missing closing }}
         
         with pytest.raises(Exception):
-            compiler.compile_sql(sql, 'test_view')
+            compiler.compile_sql(sql, 'test_view', auto_wrap=False)
+    
+    def test_compile_sql_auto_wrap(self, sample_config):
+        """Test SQL compilation with auto-wrapping"""
+        compiler = SQLTemplateCompiler(sample_config)
+        compiler.register_view('events', '`test-project.test_dataset.events`')
+        
+        sql = "SELECT * FROM {{ ref('events') }}"
+        
+        compiled = compiler.compile_sql(sql, 'test_view', auto_wrap=True)
+        
+        assert compiled.startswith("CREATE OR REPLACE VIEW `test-project.test_dataset.test_view` AS")
+        assert "SELECT * FROM `test-project.test_dataset.events`" in compiled
+    
+    def test_compile_sql_no_auto_wrap_existing_create(self, sample_config):
+        """Test SQL compilation without auto-wrapping when CREATE already exists"""
+        compiler = SQLTemplateCompiler(sample_config)
+        compiler.register_view('events', '`test-project.test_dataset.events`')
+        
+        sql = "CREATE OR REPLACE VIEW `test-project.test_dataset.test_view` AS SELECT * FROM {{ ref('events') }}"
+        
+        compiled = compiler.compile_sql(sql, 'test_view', auto_wrap=True)
+        
+        # Should not double-wrap
+        assert compiled.count("CREATE OR REPLACE VIEW") == 1
+        assert "SELECT * FROM `test-project.test_dataset.events`" in compiled
     
     def test_build_dependency_graph(self, sample_config, views_dir):
         """Test building dependency graph from SQL files"""
