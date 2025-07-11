@@ -150,26 +150,6 @@ success "dbome project initialized"
 # Final instructions
 echo
 printf "${BOLD}🎉 Installation completed successfully!${NC}\n"
-echo
-printf "${BOLD}📋 Next steps:${NC}\n"
-echo "1. Edit config.yaml with your BigQuery project details"
-echo "2. Authenticate with Google Cloud:"
-printf "   ${BLUE}gcloud auth application-default login${NC}\n"
-echo "3. Test your setup:"
-printf "   ${BLUE}uv run dbome run --dry${NC}\n"
-echo "4. Deploy your views:"
-printf "   ${BLUE}uv run dbome run${NC}\n"
-echo
-printf "${BOLD}💡 Useful aliases to add to your shell profile:${NC}\n"
-printf "   ${BLUE}alias dbome='uv run dbome'${NC}\n"
-printf "   ${BLUE}alias bq-deploy='uv run dbome run'${NC}\n"
-printf "   ${BLUE}alias bq-dry='uv run dbome run --dry'${NC}\n"
-echo
-printf "${BOLD}📚 Documentation:${NC}\n"
-echo "   • Project README: ./README.md"
-echo "   • Example SQL files: ./sql/views/"
-echo "   • Configuration: ./config.yaml"
-echo
 printf "${BOLD}🚀 Welcome to dbome - dbt at home!${NC}\n"
 
 # Show project structure

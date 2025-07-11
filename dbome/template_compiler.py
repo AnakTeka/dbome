@@ -243,40 +243,53 @@ class SQLTemplateCompiler:
         
         return result
     
-    def get_deployment_order(self, sql_files: List[Path]) -> List[str]:
+    def get_deployment_order(self, sql_files: List[Path], all_available_files: Optional[List[Path]] = None) -> List[str]:
         """
         Get the correct deployment order based on dependencies
         
         Args:
-            sql_files: List of SQL file paths
+            sql_files: List of SQL file paths to deploy
+            all_available_files: List of all available SQL files for dependency resolution (optional)
             
         Returns:
-            List of view names in deployment order
+            List of view names in deployment order (only includes views from sql_files)
         """
-        graph = self.build_dependency_graph(sql_files)
+        # Use all available files for dependency graph building, or fall back to selected files
+        dependency_scope = all_available_files if all_available_files else sql_files
+        graph = self.build_dependency_graph(dependency_scope)
         
         if not graph:
             return [f.stem for f in sql_files]
         
         try:
-            return self.topological_sort(graph)
+            # Get full topological order
+            full_order = self.topological_sort(graph)
+            
+            # Filter to only include views that are in sql_files
+            target_views = {f.stem for f in sql_files}
+            filtered_order = [view for view in full_order if view in target_views]
+            
+            return filtered_order
         except ValueError as e:
             console.print(f"[red]Dependency error: {e}[/red]")
             # Fallback to original order
             return [f.stem for f in sql_files]
     
-    def validate_references(self, sql_files: List[Path]) -> List[str]:
+    def validate_references(self, sql_files: List[Path], all_available_files: Optional[List[Path]] = None) -> List[str]:
         """
         Validate that all ref() calls reference existing views
         
         Args:
-            sql_files: List of SQL file paths
+            sql_files: List of SQL file paths to validate
+            all_available_files: List of all available SQL files for reference checking (optional)
             
         Returns:
             List of validation errors
         """
         errors = []
-        available_views = {f.stem for f in sql_files}
+        # Use all available files for validation scope, or fall back to selected files
+        reference_scope = all_available_files if all_available_files else sql_files
+        available_views = {f.stem for f in reference_scope}
         
         for file_path in sql_files:
             try:

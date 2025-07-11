@@ -205,10 +205,17 @@ class BigQueryViewManager:
             return
         
         # Get deployment order based on dependencies
-        deployment_order = self.template_compiler.get_deployment_order(sql_files)
+        # For selected files, we only deploy the selected ones but need to consider all dependencies
+        if specific_files:
+            # Build dependency graph from all files but only return order for selected files
+            all_sql_files = self.find_sql_files()
+            deployment_order = self.template_compiler.get_deployment_order(sql_files, all_sql_files)
+        else:
+            deployment_order = self.template_compiler.get_deployment_order(sql_files)
         
-        # Validate all references
-        validation_errors = self.template_compiler.validate_references(sql_files)
+        # Validate all references (check against all available views, not just selected ones)
+        all_sql_files = self.find_sql_files() if specific_files else sql_files
+        validation_errors = self.template_compiler.validate_references(sql_files, all_sql_files)
         if validation_errors:
             console.print("[red]Template validation errors found:[/red]")
             for error in validation_errors:
@@ -437,13 +444,25 @@ def init_project(project_name: Optional[str] = None) -> None:
             console.print(f"1. [cyan]cd {project_name}[/cyan]")
             console.print(f"2. [cyan]cp config.yaml.template config.yaml[/cyan]")
             console.print(f"3. Edit config.yaml with your BigQuery project details")
-            console.print(f"4. [cyan]gcloud auth application-default login[/cyan]")
-            console.print(f"5. [cyan]dbome --dry-run[/cyan]")
+            console.print(f"4. Configure Google Cloud authentication (choose one):")
+            console.print(f"   [bold]Option A (Recommended):[/bold]")
+            console.print(f"   [cyan]gcloud auth application-default login[/cyan]")
+            console.print(f"   [bold]Option B (Service Account):[/bold]")
+            console.print(f"   • Download service account JSON key from Google Cloud Console")
+            console.print(f"   • Update config.yaml with the path:")
+            console.print(f"     [dim]google_application_credentials: \"/path/to/service-account-key.json\"[/dim]")
+            console.print(f"5. [cyan]dbome run --dry[/cyan]")
         else:
             console.print(f"1. [cyan]cp config.yaml.template config.yaml[/cyan]")
             console.print(f"2. Edit config.yaml with your BigQuery project details")
-            console.print(f"3. [cyan]gcloud auth application-default login[/cyan]")
-            console.print(f"4. [cyan]dbome --dry-run[/cyan]")
+            console.print(f"3. Configure Google Cloud authentication (choose one):")
+            console.print(f"   [bold]Option A (Recommended):[/bold]")
+            console.print(f"   [cyan]gcloud auth application-default login[/cyan]")
+            console.print(f"   [bold]Option B (Service Account):[/bold]")
+            console.print(f"   • Download service account JSON key from Google Cloud Console")
+            console.print(f"   • Update config.yaml with the path:")
+            console.print(f"     [dim]google_application_credentials: \"/path/to/service-account-key.json\"[/dim]")
+            console.print(f"4. [cyan]dbome run --dry[/cyan]")
         
         console.print(f"\n[dim]For more help, see README.md in your new project![/dim]")
         console.print(f"\n[bold blue]Welcome to dbome - dbt at home! 🏠[/bold blue]")
@@ -632,15 +651,21 @@ For more help, visit: https://github.com/your-repo/dbome
                 console.print("[yellow]No SQL files found to analyze[/yellow]")
                 return
             
-            graph = manager.template_compiler.build_dependency_graph(sql_files)
-            order = manager.template_compiler.get_deployment_order(sql_files)
+            # For dependency analysis, consider all files for full graph but highlight selected ones
+            all_sql_files = manager.find_sql_files() if selected_files else sql_files
+            graph = manager.template_compiler.build_dependency_graph(all_sql_files)
+            order = manager.template_compiler.get_deployment_order(sql_files, all_sql_files)
+            
+            # Show only the selected views in the graph if --select was used
+            target_views = {f.stem for f in sql_files}
             
             console.print("[bold blue]Dependency Graph:[/bold blue]")
             for view, deps in graph.items():
-                if deps:
-                    console.print(f"  {view} → {', '.join(deps)}")
-                else:
-                    console.print(f"  {view} (no dependencies)")
+                if view in target_views:  # Only show selected views
+                    if deps:
+                        console.print(f"  {view} → {', '.join(deps)}")
+                    else:
+                        console.print(f"  {view} (no dependencies)")
             
             console.print(f"\n[bold green]Deployment Order:[/bold green]")
             for i, view in enumerate(order, 1):
@@ -652,7 +677,9 @@ For more help, visit: https://github.com/your-repo/dbome
                 console.print("[yellow]No SQL files found to validate[/yellow]")
                 return
             
-            errors = manager.template_compiler.validate_references(sql_files)
+            # For validation, always check against all available views
+            all_sql_files = manager.find_sql_files() if selected_files else sql_files
+            errors = manager.template_compiler.validate_references(sql_files, all_sql_files)
             if errors:
                 console.print("[red]Validation errors found:[/red]")
                 for error in errors:
