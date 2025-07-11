@@ -1,7 +1,6 @@
 -- User analytics view - FINAL TEST - depends on MULTIPLE views (B and C)
 -- This demonstrates a single view with multiple ref() references
 
-CREATE OR REPLACE VIEW `your-project.your_dataset.user_analytics` AS
 SELECT 
     m.user_id,
     m.total_actions,
@@ -19,4 +18,4 @@ SELECT
 FROM {{ ref('user_metrics') }} m  -- Reference to user_metrics (B)
 JOIN {{ ref('user_segments') }} s  -- Reference to user_segments (C)
     ON m.user_id = s.user_id
-WHERE m.total_actions >= 5; 
+WHERE m.total_actions >= 5 
