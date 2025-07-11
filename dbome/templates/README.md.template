@@ -6,7 +6,7 @@ BigQuery View Management Project
 > *"We have dbt at home."*  
 > **dbt at home:** 🏠
 
-This project uses [dbome](https://github.com/your-repo/dbome) to manage BigQuery views with **dbt-like functionality**, including automatic dependency resolution, template compilation, and deployment automation.
+This project uses [dbome](https://github.com/AnakTeka/dbome) to manage BigQuery views with **dbt-like functionality**, including automatic dependency resolution, template compilation, and deployment automation.
 
 ## ✨ Features
 
@@ -153,7 +153,7 @@ compiled/views/
 
 ## 📚 Documentation
 
-For more detailed documentation, visit the [dbome](https://github.com/your-repo/dbome) repository.
+For more detailed documentation, visit the [dbome](https://github.com/AnakTeka/dbome) repository.
 
 ## 🤝 Contributing
 

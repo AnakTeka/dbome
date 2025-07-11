@@ -28,7 +28,7 @@ The easiest way to get started - **perfect for SageMaker users** and quick setup
 
 ```bash
 # Simply run this in the directory where you want your dbome project
-curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/AnakTeka/dbome/main/install.sh | bash
 ```
 
 This will:
@@ -46,7 +46,7 @@ For your DS friend using SageMaker:
 
 1. **Open SageMaker terminal** 
 2. **Create directory**: `mkdir my-bq-project && cd my-bq-project`
-3. **Install dbome**: `curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash`
+3. **Install dbome**: `curl -sSL https://raw.githubusercontent.com/AnakTeka/dbome/main/install.sh | bash`
 4. **Configure BigQuery**: Edit `config.yaml` with your project details
 5. **Deploy views**: `uv run dbome run --dry` (test) then `uv run dbome run` (deploy)
 
@@ -90,7 +90,7 @@ dbome run --dry         # if using pip
 # In SageMaker terminal or any Linux environment:
 mkdir my-analytics-project
 cd my-analytics-project
-curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/AnakTeka/dbome/main/install.sh | bash
 ```
 
 **That's it!** ✨ Everything is set up and ready to go.

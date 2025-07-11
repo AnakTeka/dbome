@@ -607,7 +607,7 @@ Examples:
   dbome deps                         Show dependency graph
   dbome validate                     Validate all ref() references
 
-For more help, visit: https://github.com/your-repo/dbome
+For more help, visit: https://github.com/AnakTeka/dbome
         """
     )
     
