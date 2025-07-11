@@ -2,6 +2,10 @@
 
 Git-based BigQuery View Management Tool
 
+> *"Mom, can we have dbt?"*  
+> *"We have dbt at home."*  
+> **dbt at home:** 🏠
+
 <!-- Last updated: 2025-01-11 for testing selective post-commit hook -->
 
 A Git-based repository that automatically deploys BigQuery views using native `CREATE OR REPLACE VIEW` SQL syntax and post-commit hooks. Store your view definitions in standard SQL files that can be executed directly in BigQuery, track changes with Git, and keep your BigQuery views in sync automatically.
@@ -10,7 +14,7 @@ A Git-based repository that automatically deploys BigQuery views using native `C
 
 - **Git-based SQL Management**: Store and version control your SQL view files
 - **Automatic Deployment**: Post-commit hooks automatically update BigQuery views
-- **Native SQL Syntax**: Uses `CREATE OR REPLACE VIEW` statements directly
+- **📝 Simplified SQL syntax**: No more CREATE OR REPLACE VIEW boilerplate!
 - **dbt-like ref() Syntax**: Reference other views using `{{ ref('view_name') }}` syntax
 - **Dependency Resolution**: Automatically deploys views in the correct order based on dependencies
 - **Template Compilation**: Jinja2-powered template engine for dynamic SQL generation
@@ -103,38 +107,35 @@ The post-commit hook is now active and will deploy views automatically!
 
 ### Adding SQL Views
 
-1. Create SQL files in the `sql/views/` directory using `CREATE OR REPLACE VIEW` syntax:
+1. Create SQL files in the `sql/views/` directory using **simplified dbt-like syntax**:
 
 **Basic view (no dependencies):**
 ```sql
 -- sql/views/user_actions.sql
-CREATE OR REPLACE VIEW `your-project.your_dataset.user_actions` AS
 SELECT 
     user_id,
     action_type,
     action_timestamp,
     session_id
 FROM `your-project.raw_data.events`
-WHERE action_type IS NOT NULL;
+WHERE action_type IS NOT NULL
 ```
 
 **View with dependencies using ref() syntax:**
 ```sql
 -- sql/views/user_metrics.sql
-CREATE OR REPLACE VIEW `your-project.your_dataset.user_metrics` AS
 SELECT 
     user_id,
     COUNT(*) as total_actions,
     MAX(action_timestamp) as last_action_date,
     COUNT(DISTINCT session_id) as total_sessions
 FROM {{ ref('user_actions') }}
-GROUP BY user_id;
+GROUP BY user_id
 ```
 
 **Multi-level dependency chain:**
 ```sql
 -- sql/views/user_summary.sql
-CREATE OR REPLACE VIEW `your-project.your_dataset.user_summary` AS
 SELECT 
     CASE 
         WHEN total_actions >= 100 THEN 'High Activity'
@@ -144,8 +145,14 @@ SELECT
     COUNT(*) as user_count,
     AVG(total_actions) as avg_actions_per_user
 FROM {{ ref('user_metrics') }}
-GROUP BY activity_level;
+GROUP BY activity_level
 ```
+
+**✨ How it works:**
+- **Filename = View name**: `user_actions.sql` → `user_actions` view
+- **Auto-wrapping**: System automatically adds `CREATE OR REPLACE VIEW` statement
+- **No boilerplate**: Just write your SELECT statement!
+- **Backwards compatible**: Files with existing `CREATE OR REPLACE VIEW` statements still work
 
 2. Commit your changes:
 
@@ -195,6 +202,7 @@ bigquery:
 
 sql:
   views_directory: "sql/views"          # Directory to scan for view files
+  compiled_directory: "compiled/views"  # Output directory for compiled SQL
   
   include_patterns:                     # File patterns to include
     - "*.sql"
@@ -205,6 +213,7 @@ sql:
 deployment:
   dry_run: false                       # Dry run mode
   verbose: true                        # Verbose logging
+  save_compiled: true                  # Save compiled SQL with resolved refs
 ```
 
 ### Environment Variables
@@ -280,6 +289,29 @@ GROUP BY user_type;
 
 **Deployment Order**: `events` → `user_sessions` → `user_summary`
 
+### Compiled SQL Output
+
+When `save_compiled: true` is enabled in config, the system automatically saves compiled SQL files (with resolved `ref()` calls) to the `compiled/` directory:
+
+```bash
+# Compile SQL without deploying
+bq-view-deploy --compile-only
+# OR
+make compile
+
+# Files are saved to compiled/views/ with resolved references
+compiled/views/
+├── user_sessions.sql  # Auto-wrapped + {{ ref('events') }} → `project.dataset.events`
+└── user_summary.sql   # Auto-wrapped + {{ ref('user_sessions') }} → `project.dataset.user_sessions`
+```
+
+**Benefits:**
+- **Debug templates** - See exactly what SQL is executed (including auto-wrapping)
+- **Manual testing** - Copy compiled SQL to BigQuery console  
+- **Transparency** - Understand how ref() calls are resolved
+- **Auto-wrapping visibility** - See the generated CREATE OR REPLACE VIEW statements
+- **Version control** - Track compiled changes (though usually gitignored)
+
 ## 🔧 Commands
 
 ### CLI Commands
@@ -290,6 +322,7 @@ GROUP BY user_type;
 | `bq-view-deploy --files FILE1 FILE2` | Deploy specific files only |
 | `bq-view-deploy --validate-refs` | Validate all ref() references |
 | `bq-view-deploy --show-deps` | Show dependency graph and deployment order |
+| `bq-view-deploy --compile-only` | Compile templates to compiled/ directory |
 | `bq-view-deploy --version` | Show version information |
 | `bq-view-deploy --config FILE` | Use custom config file |
 | `bq-view-deploy --help` | Show detailed help with examples |
@@ -301,6 +334,7 @@ GROUP BY user_type;
 | `make deploy` | Deploy all views |
 | `make dry-run` | Preview deployments |
 | `make check` | Validate SQL syntax |
+| `make compile` | Compile SQL templates to compiled/ directory |
 | `make setup` | Run setup script |
 | `make clean` | Clean build artifacts |
 
