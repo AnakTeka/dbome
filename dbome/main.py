@@ -101,6 +101,34 @@ class BigQueryViewManager:
         
         return sorted(sql_files)
     
+    def _register_all_views(self, sql_files: List[Path]) -> None:
+        """Register all views in the template compiler for ref() resolution"""
+        for file_path in sql_files:
+            try:
+                with open(file_path, 'r') as f:
+                    raw_content = f.read()
+                
+                view_name = file_path.stem
+                
+                # Check if SQL contains CREATE OR REPLACE VIEW
+                has_create_view = re.search(r'CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+', raw_content, re.IGNORECASE)
+                
+                if has_create_view:
+                    # Extract view name from CREATE statement
+                    create_match = re.search(r'CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+([`\'"]?[^`\'"]+[`\'"]?)', raw_content, re.IGNORECASE)
+                    if create_match:
+                        full_name = create_match.group(1)
+                        self.template_compiler.register_view(view_name, full_name)
+                else:
+                    # Plain SELECT statement - use default naming
+                    project_id = self.config['bigquery']['project_id']
+                    dataset_id = self.config['bigquery']['dataset_id']
+                    full_name = f"`{project_id}.{dataset_id}.{view_name}`"
+                    self.template_compiler.register_view(view_name, full_name)
+                    
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not register view from {file_path}: {e}[/yellow]")
+    
     def parse_sql_file(self, file_path: Path) -> Optional[Dict[str, Any]]:
         """Parse SQL file using SQLGlot and extract view information"""
         try:
@@ -213,8 +241,15 @@ class BigQueryViewManager:
         else:
             deployment_order = self.template_compiler.get_deployment_order(sql_files)
         
+        # For selected files, we need to register ALL views for ref() resolution
+        if specific_files:
+            all_sql_files = self.find_sql_files()
+            # Pre-register all views in the registry for ref() resolution
+            self._register_all_views(all_sql_files)
+        else:
+            all_sql_files = sql_files
+        
         # Validate all references (check against all available views, not just selected ones)
-        all_sql_files = self.find_sql_files() if specific_files else sql_files
         validation_errors = self.template_compiler.validate_references(sql_files, all_sql_files)
         if validation_errors:
             console.print("[red]Template validation errors found:[/red]")
