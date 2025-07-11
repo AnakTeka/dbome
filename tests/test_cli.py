@@ -23,7 +23,7 @@ class TestCLI:
         )
         
         assert result.returncode == 0
-        assert 'BigQuery View Manager' in result.stdout
+        assert 'dbome (dbt at home)' in result.stdout
         assert '--dry-run' in result.stdout
         assert '--validate-refs' in result.stdout
         assert '--show-deps' in result.stdout
@@ -37,7 +37,7 @@ class TestCLI:
         )
         
         assert result.returncode == 0
-        assert 'BigQuery View Manager' in result.stdout
+        assert 'dbome (dbt at home)' in result.stdout
         assert '0.1.0' in result.stdout
     
     def test_cli_missing_config(self):
@@ -174,7 +174,7 @@ class TestCLIScripts:
         
         # Should work if package is installed
         if result.returncode == 0:
-            assert 'BigQuery View Manager' in result.stdout
+            assert 'dbome (dbt at home)' in result.stdout
         else:
             # If not installed, command should not be found
             assert result.returncode != 0

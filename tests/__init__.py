@@ -1,1 +1,1 @@
-# Test package for BigQuery View Manager 
+# Test package for dbome (dbt at home) 

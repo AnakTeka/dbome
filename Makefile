@@ -2,7 +2,7 @@
 
 # Default target
 help:
-	@echo "🚀 BigQuery View Manager - Available Commands"
+	@echo "🏠 dbome (dbt at home) - Available Commands"
 	@echo "=============================================="
 	@echo ""
 	@echo "📦 Setup & Installation:"
@@ -34,7 +34,7 @@ help:
 
 # Setup environment and install dependencies
 setup:
-	@echo "🚀 Setting up BigQuery View Manager..."
+	@echo "🏠 Setting up dbome (dbt at home)..."
 	@./setup.sh
 
 # Install the package

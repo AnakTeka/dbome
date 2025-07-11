@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-BigQuery View Manager - Git-based BigQuery View Management
+dbome (dbt at home) - Git-based BigQuery View Management
 Entry point for the application
 """
 

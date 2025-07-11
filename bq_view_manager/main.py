@@ -330,14 +330,14 @@ class BigQueryViewManager:
 
 
 def init_project(project_name: str) -> None:
-    """Initialize a new BigQuery View Manager project"""
+    """Initialize a new dbome project"""
     project_path = Path(project_name)
     
     if project_path.exists():
         console.print(f"[red]Error: Directory '{project_name}' already exists![/red]")
         sys.exit(1)
     
-    console.print(f"[bold blue]🚀 Initializing BigQuery View Manager project: {project_name}[/bold blue]\n")
+    console.print(f"[bold blue]🏠 Initializing dbome (dbt at home) project: {project_name}[/bold blue]\n")
     
     try:
         # Create project directory
@@ -404,12 +404,12 @@ def init_project(project_name: str) -> None:
         try:
             subprocess.run(["git", "config", "user.name"], check=True, capture_output=True)
         except subprocess.CalledProcessError:
-            subprocess.run(["git", "config", "user.name", "BigQuery View Manager"], check=True, capture_output=True)
-            subprocess.run(["git", "config", "user.email", "bq-view-manager@example.com"], check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.name", "dbome"], check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.email", "dbome@example.com"], check=True, capture_output=True)
         
         # Create initial commit
         subprocess.run(["git", "add", "."], check=True, capture_output=True)
-        subprocess.run(["git", "commit", "-m", "Initial commit: BigQuery View Manager project"], 
+        subprocess.run(["git", "commit", "-m", "Initial commit: dbome (dbt at home) project"], 
                       check=True, capture_output=True)
         console.print(f"[green]✅ Created initial commit[/green]")
         
@@ -421,6 +421,7 @@ def init_project(project_name: str) -> None:
         console.print(f"4. [cyan]gcloud auth application-default login[/cyan]")
         console.print(f"5. [cyan]bq-view-deploy --dry-run[/cyan]")
         console.print(f"\n[dim]For more help, see README.md in your new project![/dim]")
+        console.print(f"\n[bold blue]Welcome to dbome - dbt at home! 🏠[/bold blue]")
         
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Error running git command: {e}[/red]")
@@ -438,11 +439,11 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(
-        description="🚀 BigQuery View Manager - Git-based BigQuery View Management",
+        description="🏠 dbome (dbt at home) - BigQuery View Management",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  bq-view-manager init my-project    Initialize a new project
+  dbome init my-project              Initialize a new project
   bq-view-deploy                     Deploy all views
   bq-view-deploy --dry-run           Preview what would be deployed
   bq-view-deploy --files view1.sql   Deploy specific files only
@@ -451,7 +452,7 @@ Examples:
   bq-view-deploy --compile-only      Compile templates to compiled/ directory
   bq-view-deploy --config prod.yaml  Use different config file
 
-For more help, visit: https://github.com/your-repo/bq-view-manager
+For more help, visit: https://github.com/your-repo/dbome
         """
     )
     
@@ -459,7 +460,7 @@ For more help, visit: https://github.com/your-repo/bq-view-manager
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
     # Init subcommand
-    init_parser = subparsers.add_parser('init', help='Initialize a new BigQuery View Manager project')
+    init_parser = subparsers.add_parser('init', help='Initialize a new dbome project')
     init_parser.add_argument('project_name', help='Name of the project directory to create')
     
     # If no subcommand provided, treat as deployment command (backwards compatibility)
@@ -467,7 +468,7 @@ For more help, visit: https://github.com/your-repo/bq-view-manager
     parser.add_argument(
         "--version", 
         action="version", 
-        version=f"BigQuery View Manager {__version__}"
+        version=f"dbome (dbt at home) {__version__}"
     )
     parser.add_argument(
         "--config", 

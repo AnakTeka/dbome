@@ -1,12 +1,11 @@
 #!/bin/bash
-#
-# Setup script for BigQuery View Manager
-#
+# Setup script for dbome (dbt at home)
+# This script sets up the development environment
 
 set -e  # Exit on error
 
-echo "🚀 Setting up BigQuery View Manager"
-echo "=================================="
+echo "🏠 Setting up dbome (dbt at home)"
+echo "======================================"
 
 
 # Check if uv is installed
