@@ -47,7 +47,7 @@ cp config.yaml.template config.yaml
 gcloud auth application-default login
 
 # Test your setup
-bq-view-deploy --dry-run
+dbome --dry-run
 ```
 
 ## 📝 Quick Start
@@ -82,10 +82,10 @@ WHERE event_timestamp >= CURRENT_DATE()
 ### 4. Deploy Your Views
 ```bash
 # Test deployment
-bq-view-deploy --dry-run
+dbome --dry-run
 
 # Deploy to BigQuery
-bq-view-deploy
+dbome
 
 # Or use git (auto-deployment)
 git add sql/views/user_events.sql
@@ -158,13 +158,13 @@ git commit -m "Update analytics views"
 
 | Command | Description |
 |---------|-------------|
-| `bq-view-deploy` | Deploy all views |
-| `bq-view-deploy --dry-run` | Preview deployments |
-| `bq-view-deploy --files FILE1 FILE2` | Deploy specific files only |
-| `bq-view-deploy --validate-refs` | Validate all ref() references |
-| `bq-view-deploy --show-deps` | Show dependency graph and deployment order |
-| `bq-view-deploy --compile-only` | Compile templates to compiled/ directory |
-| `bq-view-deploy --config FILE` | Use custom config file |
+| `dbome` | Deploy all views |
+| `dbome --dry-run` | Preview deployments |
+| `dbome --files FILE1 FILE2` | Deploy specific files only |
+| `dbome --validate-refs` | Validate all ref() references |
+| `dbome --show-deps` | Show dependency graph and deployment order |
+| `dbome --compile-only` | Compile templates to compiled/ directory |
+| `dbome --config FILE` | Use custom config file |
 
 ### Make Commands (inside your project)
 
@@ -203,7 +203,7 @@ my-project/
 See exactly what SQL is executed:
 
 ```bash
-bq-view-deploy --compile-only
+dbome --compile-only
 ```
 
 Files are saved to `compiled/views/` with resolved `ref()` calls:
@@ -223,7 +223,7 @@ GROUP BY user_id
 ### Dependency Visualization
 
 ```bash
-bq-view-deploy --show-deps
+dbome --show-deps
 ```
 
 Output:
@@ -242,7 +242,7 @@ Deployment Order:
 ### Reference Validation
 
 ```bash
-bq-view-deploy --validate-refs
+dbome --validate-refs
 ```
 
 Validates all `{{ ref('view_name') }}` calls before deployment.

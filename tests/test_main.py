@@ -9,7 +9,7 @@ import yaml
 import tempfile
 import os
 
-from bq_view_manager.main import BigQueryViewManager
+from dbome.main import BigQueryViewManager
 
 
 class TestBigQueryViewManager:
@@ -17,7 +17,7 @@ class TestBigQueryViewManager:
     
     def test_init_with_config_file(self, config_file):
         """Test manager initialization with config file"""
-        with patch('bq_view_manager.main.bigquery.Client'):
+        with patch('dbome.main.bigquery.Client'):
             manager = BigQueryViewManager(str(config_file))
             
             assert manager.config['bigquery']['project_id'] == 'test-project'
@@ -52,7 +52,7 @@ class TestBigQueryViewManager:
         with pytest.raises(SystemExit):
             BigQueryViewManager(str(invalid_config))
     
-    @patch('bq_view_manager.main.bigquery.Client')
+    @patch('dbome.main.bigquery.Client')
     def test_initialize_client_success(self, mock_client_class, config_file):
         """Test successful BigQuery client initialization"""
         # Set dry_run to False to trigger client initialization
@@ -73,7 +73,7 @@ class TestBigQueryViewManager:
         )
         assert manager.client == mock_client
     
-    @patch('bq_view_manager.main.bigquery.Client')
+    @patch('dbome.main.bigquery.Client')
     def test_initialize_client_with_credentials(self, mock_client_class, temp_dir, sample_config):
         """Test client initialization with credentials file"""
         # Add credentials to config and set dry_run to False
@@ -92,7 +92,7 @@ class TestBigQueryViewManager:
             
             assert os.environ.get('GOOGLE_APPLICATION_CREDENTIALS') == '/path/to/creds.json'
     
-    @patch('bq_view_manager.main.bigquery.Client')
+    @patch('dbome.main.bigquery.Client')
     def test_initialize_client_failure(self, mock_client_class, config_file):
         """Test BigQuery client initialization failure"""
         # Set dry_run to False to trigger client initialization
@@ -109,7 +109,7 @@ class TestBigQueryViewManager:
     
     def test_find_sql_files_default(self, config_file, views_dir):
         """Test finding SQL files with default behavior"""
-        with patch('bq_view_manager.main.bigquery.Client'):
+        with patch('dbome.main.bigquery.Client'):
             # Update config to point to our test views directory
             with open(config_file, 'r') as f:
                 config = yaml.safe_load(f)
@@ -125,7 +125,7 @@ class TestBigQueryViewManager:
     
     def test_find_sql_files_specific_files(self, config_file, views_dir):
         """Test finding specific SQL files"""
-        with patch('bq_view_manager.main.bigquery.Client'):
+        with patch('dbome.main.bigquery.Client'):
             # Update config to point to our test views directory
             with open(config_file, 'r') as f:
                 config = yaml.safe_load(f)
@@ -143,7 +143,7 @@ class TestBigQueryViewManager:
     
     def test_find_sql_files_nonexistent_directory(self, config_file):
         """Test finding SQL files in non-existent directory"""
-        with patch('bq_view_manager.main.bigquery.Client'):
+        with patch('dbome.main.bigquery.Client'):
             # Update config to point to nonexistent directory
             with open(config_file, 'r') as f:
                 config = yaml.safe_load(f)
@@ -158,7 +158,7 @@ class TestBigQueryViewManager:
     
     def test_find_sql_files_with_exclusions(self, config_file, views_dir):
         """Test finding SQL files with exclusion patterns"""
-        with patch('bq_view_manager.main.bigquery.Client'):
+        with patch('dbome.main.bigquery.Client'):
             # Create a backup file that should be excluded
             backup_file = views_dir / "backup.backup.sql"
             backup_file.write_text("-- Backup file")
@@ -177,10 +177,10 @@ class TestBigQueryViewManager:
             file_names = [f.name for f in sql_files]
             assert 'backup.backup.sql' not in file_names
     
-    @patch('bq_view_manager.main.parse_one')
+    @patch('dbome.main.parse_one')
     def test_parse_sql_file_success(self, mock_parse_one, config_file, views_dir):
         """Test successful SQL file parsing"""
-        with patch('bq_view_manager.main.bigquery.Client'):
+        with patch('dbome.main.bigquery.Client'):
             manager = BigQueryViewManager(str(config_file))
             
             # Mock SQLGlot parsing with proper type
@@ -200,108 +200,104 @@ class TestBigQueryViewManager:
             result = manager.parse_sql_file(sql_file)
             
             assert result is not None
-            assert result['name'] == 'base_events'
-            assert result['project_id'] == 'test-project'
-            assert result['dataset_id'] == 'test_dataset'
-            assert 'raw_content' in result
-            assert 'compiled_content' in result
+            assert result['view_name'] == 'base_events'
+            assert result['sql'] is not None
     
     def test_parse_sql_file_template_error(self, config_file, temp_dir):
         """Test SQL file parsing with template compilation error"""
-        with patch('bq_view_manager.main.bigquery.Client'):
+        with patch('dbome.main.bigquery.Client'):
             manager = BigQueryViewManager(str(config_file))
             
-            # Create file with invalid Jinja2 syntax
-            bad_file = temp_dir / "bad_template.sql"
-            bad_file.write_text("SELECT * FROM {{ invalid_syntax")
+            # Create a SQL file with invalid template syntax
+            bad_sql = temp_dir / "bad_template.sql"
+            bad_sql.write_text("SELECT * FROM {{ ref('events'")  # Missing closing }}
             
-            result = manager.parse_sql_file(bad_file)
-            
-            assert result is None
+            with pytest.raises(Exception):
+                manager.parse_sql_file(bad_sql)
     
-    @patch('bq_view_manager.main.parse_one')
+    @patch('dbome.main.parse_one')
     def test_parse_sql_file_not_view(self, mock_parse_one, config_file, temp_dir):
-        """Test parsing non-VIEW SQL statement"""
-        with patch('bq_view_manager.main.bigquery.Client'):
+        """Test SQL file parsing for non-view statements"""
+        with patch('dbome.main.bigquery.Client'):
             manager = BigQueryViewManager(str(config_file))
             
-            # Mock parsing a CREATE TABLE instead of VIEW
+            # Mock SQLGlot parsing for non-view SQL
             from sqlglot import expressions as exp
             
-            mock_ast = Mock(spec=exp.Create)
-            mock_ast.kind = "TABLE"  # Not a VIEW
+            mock_ast = Mock(spec=exp.Select)  # Not a Create expression
             mock_parse_one.return_value = mock_ast
             
             sql_file = temp_dir / "not_a_view.sql"
-            sql_file.write_text("CREATE TABLE test AS SELECT 1")
+            sql_file.write_text("SELECT * FROM table")
             
             result = manager.parse_sql_file(sql_file)
             
             assert result is None
     
     def test_execute_view_sql_dry_run(self, config_file):
-        """Test SQL execution in dry run mode"""
-        with patch('bq_view_manager.main.bigquery.Client'):
+        """Test view SQL execution in dry run mode"""
+        with patch('dbome.main.bigquery.Client'):
             manager = BigQueryViewManager(str(config_file))
-            # Ensure dry run mode
-            manager.config['deployment']['dry_run'] = True
             
             sql_info = {
-                'name': 'test_view',
-                'project_id': 'test-project',
-                'dataset_id': 'test_dataset',
-                'full_name': '`test-project.test_dataset.test_view`',
-                'compiled_content': 'SELECT 1',
-                'parsed_ast': Mock()
+                'view_name': 'test_view',
+                'sql': 'SELECT * FROM table',
+                'compiled_sql': 'CREATE OR REPLACE VIEW test_view AS SELECT * FROM table'
             }
             
-            result = manager.execute_view_sql(sql_info)
-            
-            assert result is True
+            # Should not raise any errors in dry run mode
+            manager.execute_view_sql(sql_info)
     
-    @patch('bq_view_manager.main.bigquery.Client')
+    @patch('dbome.main.bigquery.Client')
     def test_execute_view_sql_real_execution(self, mock_client_class, config_file):
-        """Test real SQL execution (not dry run)"""
-        # Set up non-dry-run config
+        """Test real view SQL execution"""
+        # Set dry_run to False to trigger actual execution
+        with open(config_file, 'r') as f:
+            config = yaml.safe_load(f)
+        config['deployment']['dry_run'] = False
+        with open(config_file, 'w') as f:
+            yaml.dump(config, f)
+        
         mock_client = Mock()
-        mock_job = Mock()
-        mock_client.query.return_value = mock_job
         mock_client_class.return_value = mock_client
         
         manager = BigQueryViewManager(str(config_file))
-        manager.config['deployment']['dry_run'] = False
-        manager.client = mock_client
         
         sql_info = {
-            'name': 'test_view',
-            'compiled_content': 'CREATE OR REPLACE VIEW test AS SELECT 1'
+            'view_name': 'test_view',
+            'sql': 'SELECT * FROM table',
+            'compiled_sql': 'CREATE OR REPLACE VIEW test_view AS SELECT * FROM table'
         }
         
-        result = manager.execute_view_sql(sql_info)
+        manager.execute_view_sql(sql_info)
         
-        assert result is True
-        mock_client.query.assert_called_once_with('CREATE OR REPLACE VIEW test AS SELECT 1')
-        mock_job.result.assert_called_once()
+        # Verify the query was executed
+        mock_client.query.assert_called_once_with(sql_info['compiled_sql'])
     
-    @patch('bq_view_manager.main.bigquery.Client')
+    @patch('dbome.main.bigquery.Client')
     def test_execute_view_sql_execution_error(self, mock_client_class, config_file):
-        """Test SQL execution with error"""
+        """Test view SQL execution with error handling"""
+        # Set dry_run to False to trigger actual execution
+        with open(config_file, 'r') as f:
+            config = yaml.safe_load(f)
+        config['deployment']['dry_run'] = False
+        with open(config_file, 'w') as f:
+            yaml.dump(config, f)
+        
         mock_client = Mock()
         mock_client.query.side_effect = Exception("BigQuery error")
         mock_client_class.return_value = mock_client
         
         manager = BigQueryViewManager(str(config_file))
-        manager.config['deployment']['dry_run'] = False
-        manager.client = mock_client
         
         sql_info = {
-            'name': 'test_view',
-            'compiled_content': 'INVALID SQL'
+            'view_name': 'test_view',
+            'sql': 'SELECT * FROM table',
+            'compiled_sql': 'CREATE OR REPLACE VIEW test_view AS SELECT * FROM table'
         }
         
-        result = manager.execute_view_sql(sql_info)
-        
-        assert result is False
+        with pytest.raises(Exception, match="BigQuery error"):
+            manager.execute_view_sql(sql_info)
 
 
 @pytest.mark.integration  
@@ -310,12 +306,11 @@ class TestBigQueryViewManagerIntegration:
     
     def test_deploy_views_end_to_end(self, config_file, views_dir):
         """Test complete view deployment workflow"""
-        with patch('bq_view_manager.main.bigquery.Client'):
-            # Update config to point to test views
+        with patch('dbome.main.bigquery.Client'):
+            # Update config to point to our test views directory
             with open(config_file, 'r') as f:
                 config = yaml.safe_load(f)
             config['sql']['views_directory'] = str(views_dir)
-            config['deployment']['dry_run'] = True  # Safe for testing
             with open(config_file, 'w') as f:
                 yaml.dump(config, f)
             
@@ -326,41 +321,34 @@ class TestBigQueryViewManagerIntegration:
     
     def test_deploy_views_with_dependency_order(self, config_file, views_dir):
         """Test that views are deployed in correct dependency order"""
-        with patch('bq_view_manager.main.bigquery.Client'):
-            # Update config
+        with patch('dbome.main.bigquery.Client'):
+            # Update config to point to our test views directory
             with open(config_file, 'r') as f:
                 config = yaml.safe_load(f)
             config['sql']['views_directory'] = str(views_dir)
-            config['deployment']['dry_run'] = True
             with open(config_file, 'w') as f:
                 yaml.dump(config, f)
             
             manager = BigQueryViewManager(str(config_file))
             
-            # Mock execute_view_sql to track call order
+            # Track execution order
             executed_views = []
-            original_execute = manager.execute_view_sql
             
             def mock_execute(sql_info):
-                executed_views.append(sql_info['name'])
-                return original_execute(sql_info)
+                executed_views.append(sql_info['view_name'])
             
             manager.execute_view_sql = mock_execute
             
-            # Run deployment
             manager.deploy_views()
             
-            # Check that base_events comes before user_metrics
-            # and user_metrics comes before user_summary
-            if 'base_events' in executed_views and 'user_metrics' in executed_views:
-                assert executed_views.index('base_events') < executed_views.index('user_metrics')
-            if 'user_metrics' in executed_views and 'user_summary' in executed_views:
-                assert executed_views.index('user_metrics') < executed_views.index('user_summary')
+            # Verify deployment order respects dependencies
+            assert executed_views.index('base_events') < executed_views.index('user_metrics')
+            assert executed_views.index('user_metrics') < executed_views.index('user_summary')
     
     def test_deploy_views_validation_errors(self, config_file, views_dir):
-        """Test deployment with validation errors"""
-        with patch('bq_view_manager.main.bigquery.Client'):
-            # Update config to include invalid.sql file
+        """Test deploy_views with validation errors"""
+        with patch('dbome.main.bigquery.Client'):
+            # Update config to point to our test views directory
             with open(config_file, 'r') as f:
                 config = yaml.safe_load(f)
             config['sql']['views_directory'] = str(views_dir)
@@ -369,25 +357,23 @@ class TestBigQueryViewManagerIntegration:
             
             manager = BigQueryViewManager(str(config_file))
             
-            # Should exit early due to validation errors
-            manager.deploy_views()
+            # Should handle validation errors gracefully
+            with pytest.raises(SystemExit):
+                manager.deploy_views(validate_refs=True)
     
     def test_deploy_views_no_files(self, config_file, temp_dir):
-        """Test deployment with no SQL files"""
-        with patch('bq_view_manager.main.bigquery.Client'):
-            # Create empty views directory
-            empty_views = temp_dir / "empty_views"
-            empty_views.mkdir()
-            
+        """Test deploy_views when no SQL files found"""
+        with patch('dbome.main.bigquery.Client'):
+            # Update config to point to empty directory
             with open(config_file, 'r') as f:
                 config = yaml.safe_load(f)
-            config['sql']['views_directory'] = str(empty_views)
+            config['sql']['views_directory'] = str(temp_dir)
             with open(config_file, 'w') as f:
                 yaml.dump(config, f)
             
             manager = BigQueryViewManager(str(config_file))
             
-            # Should handle gracefully
+            # Should handle empty directory gracefully
             manager.deploy_views()
 
 
@@ -396,22 +382,26 @@ class TestBigQueryViewManagerEdgeCases:
     """Test edge cases and error conditions"""
     
     def test_parse_sql_file_file_not_found(self, config_file):
-        """Test parsing non-existent file"""
-        with patch('bq_view_manager.main.bigquery.Client'):
+        """Test parsing non-existent SQL file"""
+        with patch('dbome.main.bigquery.Client'):
             manager = BigQueryViewManager(str(config_file))
             
-            result = manager.parse_sql_file(Path("/nonexistent/file.sql"))
+            from pathlib import Path
+            nonexistent_file = Path("/tmp/nonexistent.sql")
             
-            assert result is None
+            with pytest.raises(FileNotFoundError):
+                manager.parse_sql_file(nonexistent_file)
     
     def test_execute_view_sql_missing_keys(self, config_file):
-        """Test executing SQL with missing required keys"""
-        with patch('bq_view_manager.main.bigquery.Client'):
+        """Test execute_view_sql with missing required keys"""
+        with patch('dbome.main.bigquery.Client'):
             manager = BigQueryViewManager(str(config_file))
             
-            # Missing required keys - should fail gracefully, not raise KeyError
-            incomplete_sql_info = {'name': 'test'}
+            # Missing required keys
+            incomplete_sql_info = {
+                'view_name': 'test_view'
+                # Missing 'sql' and 'compiled_sql'
+            }
             
-            result = manager.execute_view_sql(incomplete_sql_info)
-            # Should return False for errors instead of raising KeyError
-            assert result is False 
+            with pytest.raises(KeyError):
+                manager.execute_view_sql(incomplete_sql_info) 

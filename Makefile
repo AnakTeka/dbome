@@ -50,12 +50,12 @@ dev-install:
 # Deploy all views
 deploy:
 	@echo "🚀 Deploying views to BigQuery..."
-	@bq-view-deploy
+	@$(UV) run dbome --config $(CONFIG_FILE)
 
 # Dry run - show what would be deployed
 dry-run:
 	@echo "🔍 Dry run - showing what would be deployed..."
-	@bq-view-deploy --dry-run
+	@$(UV) run dbome --config $(CONFIG_FILE) --dry-run
 
 # Check/validate SQL files
 check: dry-run
@@ -63,7 +63,17 @@ check: dry-run
 # Compile SQL templates without deploying
 compile:
 	@echo "📄 Compiling SQL templates..."
-	@bq-view-deploy --compile-only
+	@$(UV) run dbome --config $(CONFIG_FILE) --compile-only
+
+# Show dependency graph
+show-deps:
+	@echo "📊 Showing dependency graph..."
+	@$(UV) run dbome --config $(CONFIG_FILE) --show-deps
+
+# Validate references
+validate-refs:
+	@echo "🔍 Validating references..."
+	@$(UV) run dbome --config $(CONFIG_FILE) --validate-refs
 
 # Clean build artifacts
 clean:
@@ -83,7 +93,7 @@ deploy-confirm:
 # Deploy specific files (usage: make deploy-files FILES="file1.sql file2.sql")
 deploy-files:
 	@echo "🚀 Deploying specific files: $(FILES)"
-	@bq-view-deploy --files $(FILES)
+	@$(UV) run dbome --config $(CONFIG_FILE) --files $(FILES)
 
 # Testing targets
 test:
@@ -100,7 +110,7 @@ test-integration:
 
 test-coverage:
 	@echo "🧪 Running tests with coverage..."
-	@uv run pytest --cov=bq_view_manager --cov-report=html --cov-report=term
+	@uv run pytest --cov=dbome --cov-report=html --cov-report=term
 
 test-verbose:
 	@echo "🧪 Running tests with verbose output..."

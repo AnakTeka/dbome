@@ -1,32 +1,27 @@
 [project]
 name = "dbome"
 version = "0.1.0"
-description = "dbt at home 🏠 - A dbt-like tool with simplified SQL syntax, dependency resolution, and git-based workflows"
-readme = "README.md"
-requires-python = ">=3.11"
+description = "dbome (dbt at home) - A dbt-like tool for BigQuery view management"
+authors = [
+    {name = "Your Name", email = "your.email@example.com"},
+]
 dependencies = [
-    "google-cloud-bigquery>=3.13.0",
-    "google-auth>=2.23.0",
-    "pyyaml>=6.0.1",
-    "rich>=13.6.0",
-    "sqlglot[rs]>=27.0.0",
     "jinja2>=3.1.0",
+    "google-cloud-bigquery>=3.13.0",
+    "pyyaml>=6.0.1",
+    "rich>=13.0.0",
+    "sqlglot>=18.0.0",
 ]
-
-[project.optional-dependencies]
-test = [
-    "pytest>=7.4.0",
-    "pytest-cov>=4.1.0",
-    "pytest-mock>=3.11.0",
-]
+requires-python = ">=3.8"
+readme = "README.md"
+license = {text = "MIT"}
 
 [project.scripts]
-dbome = "bq_view_manager.main:main"
-bq-view-deploy = "bq_view_manager.main:main"
+dbome = "dbome.main:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["bq_view_manager"]
+packages = ["dbome"]

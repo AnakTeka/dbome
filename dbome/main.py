@@ -419,7 +419,7 @@ def init_project(project_name: str) -> None:
         console.print(f"2. [cyan]cp config.yaml.template config.yaml[/cyan]")
         console.print(f"3. Edit config.yaml with your BigQuery project details")
         console.print(f"4. [cyan]gcloud auth application-default login[/cyan]")
-        console.print(f"5. [cyan]bq-view-deploy --dry-run[/cyan]")
+        console.print(f"5. [cyan]dbome --dry-run[/cyan]")
         console.print(f"\n[dim]For more help, see README.md in your new project![/dim]")
         console.print(f"\n[bold blue]Welcome to dbome - dbt at home! 🏠[/bold blue]")
         
@@ -444,13 +444,13 @@ def main():
         epilog="""
 Examples:
   dbome init my-project              Initialize a new project
-  bq-view-deploy                     Deploy all views
-  bq-view-deploy --dry-run           Preview what would be deployed
-  bq-view-deploy --files view1.sql   Deploy specific files only
-  bq-view-deploy --validate-refs     Validate all ref() references
-  bq-view-deploy --show-deps         Show dependency graph
-  bq-view-deploy --compile-only      Compile templates to compiled/ directory
-  bq-view-deploy --config prod.yaml  Use different config file
+  dbome                              Deploy all views
+  dbome --dry-run                    Preview what would be deployed
+  dbome --files view1.sql            Deploy specific files only
+  dbome --validate-refs              Validate all ref() references
+  dbome --show-deps                  Show dependency graph
+  dbome --compile-only               Compile templates to compiled/ directory
+  dbome --config prod.yaml           Use different config file
 
 For more help, visit: https://github.com/your-repo/dbome
         """

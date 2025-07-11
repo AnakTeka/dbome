@@ -1,0 +1,55 @@
+#!/bin/bash
+# Git post-commit hook for dbome (dbt at home)
+# Automatically deploys BigQuery views when SQL files are committed
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}🚀 dbome (dbt at home) - Auto-deployment started${NC}"
+
+# Get the list of changed SQL files in the last commit
+changed_files=$(git diff --name-only HEAD~1 HEAD | grep -E '\.sql$' | grep -v '^compiled/' || true)
+
+if [ -z "$changed_files" ]; then
+    echo -e "${YELLOW}ℹ️  No SQL files changed in this commit${NC}"
+    exit 0
+fi
+
+echo -e "${YELLOW}📄 Changed SQL files:${NC}"
+echo "$changed_files" | sed 's/^/  /'
+
+# Convert to array for processing
+files_array=()
+while IFS= read -r file; do
+    if [ -f "$file" ]; then
+        files_array+=("$file")
+    fi
+done <<< "$changed_files"
+
+if [ ${#files_array[@]} -eq 0 ]; then
+    echo -e "${YELLOW}ℹ️  No valid SQL files to deploy${NC}"
+    exit 0
+fi
+
+echo -e "${YELLOW}🚀 Deploying ${#files_array[@]} SQL file(s)...${NC}"
+
+# Try to deploy using uv first, then fall back to python
+if command -v uv &> /dev/null; then
+    echo -e "${BLUE}📦 Using uv for deployment${NC}"
+    uv run python -m dbome.main --files "${files_array[@]}"
+else
+    echo -e "${BLUE}🐍 Using python for deployment${NC}"
+    python -m dbome.main --files "${files_array[@]}"
+fi
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✅ Auto-deployment completed successfully${NC}"
+else
+    echo -e "${RED}❌ Auto-deployment failed${NC}"
+    exit 1
+fi 

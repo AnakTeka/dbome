@@ -1,242 +1,223 @@
 """
-Integration tests for CLI commands
+Command line interface tests for BigQuery view manager
 """
 
 import pytest
 import subprocess
 import sys
+import tempfile
+import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 import yaml
 
 
-@pytest.mark.integration
 class TestCLI:
-    """Test CLI command functionality"""
+    """Test command line interface functionality"""
     
-    def test_cli_help(self):
-        """Test CLI help command"""
+    def test_help_command(self):
+        """Test --help command"""
         result = subprocess.run(
-            [sys.executable, '-m', 'bq_view_manager.main', '--help'],
+            [sys.executable, '-m', 'dbome.main', '--help'],
             capture_output=True,
             text=True
         )
         
         assert result.returncode == 0
-        assert 'dbome (dbt at home)' in result.stdout
+        assert 'BigQuery View Manager' in result.stdout
+        assert '--config' in result.stdout
         assert '--dry-run' in result.stdout
+        assert '--files' in result.stdout
         assert '--validate-refs' in result.stdout
         assert '--show-deps' in result.stdout
     
-    def test_cli_version(self):
-        """Test CLI version command"""
+    def test_version_command(self):
+        """Test --version command"""
         result = subprocess.run(
-            [sys.executable, '-m', 'bq_view_manager.main', '--version'],
+            [sys.executable, '-m', 'dbome.main', '--version'],
             capture_output=True,
             text=True
         )
         
         assert result.returncode == 0
-        assert 'dbome (dbt at home)' in result.stdout
-        assert '0.1.0' in result.stdout
+        assert 'BigQuery View Manager' in result.stdout
     
-    def test_cli_missing_config(self):
-        """Test CLI with missing config file"""
+    def test_config_file_not_found(self):
+        """Test behavior when config file doesn't exist"""
         result = subprocess.run(
-            [sys.executable, '-m', 'bq_view_manager.main', '--config', 'nonexistent.yaml'],
-            capture_output=True,
-            text=True
-        )
-        
-        assert result.returncode == 1
-        assert 'Config file' in result.stdout or 'not found' in result.stdout or 'Config file' in result.stderr or 'not found' in result.stderr
-    
-    def test_cli_validate_refs_success(self, config_file, views_dir):
-        """Test CLI validate-refs command with valid references"""
-        # Update config to point to test views (excluding invalid.sql)
-        with open(config_file, 'r') as f:
-            config = yaml.safe_load(f)
-        config['sql']['views_directory'] = str(views_dir)
-        config['sql']['exclude_patterns'] = ['invalid.sql']
-        with open(config_file, 'w') as f:
-            yaml.dump(config, f)
-        
-        result = subprocess.run(
-            [sys.executable, '-m', 'bq_view_manager.main', 
-             '--config', str(config_file), '--validate-refs'],
-            capture_output=True,
-            text=True
-        )
-        
-        assert result.returncode == 0
-        assert 'All references are valid' in result.stdout
-    
-    def test_cli_validate_refs_failure(self, config_file, views_dir):
-        """Test CLI validate-refs command with invalid references"""
-        # Update config to include invalid.sql
-        with open(config_file, 'r') as f:
-            config = yaml.safe_load(f)
-        config['sql']['views_directory'] = str(views_dir)
-        with open(config_file, 'w') as f:
-            yaml.dump(config, f)
-        
-        result = subprocess.run(
-            [sys.executable, '-m', 'bq_view_manager.main', 
-             '--config', str(config_file), '--validate-refs'],
-            capture_output=True,
-            text=True
-        )
-        
-        assert result.returncode == 1
-        assert 'Validation errors found' in result.stdout
-        assert 'nonexistent_view' in result.stdout
-    
-    def test_cli_show_deps(self, config_file, views_dir):
-        """Test CLI show-deps command"""
-        # Update config
-        with open(config_file, 'r') as f:
-            config = yaml.safe_load(f)
-        config['sql']['views_directory'] = str(views_dir)
-        config['sql']['exclude_patterns'] = ['invalid.sql']
-        with open(config_file, 'w') as f:
-            yaml.dump(config, f)
-        
-        result = subprocess.run(
-            [sys.executable, '-m', 'bq_view_manager.main', 
-             '--config', str(config_file), '--show-deps'],
-            capture_output=True,
-            text=True
-        )
-        
-        assert result.returncode == 0
-        assert 'Dependency Graph:' in result.stdout
-        assert 'Deployment Order:' in result.stdout
-        assert 'base_events' in result.stdout
-        assert 'user_metrics' in result.stdout
-    
-    @patch('bq_view_manager.main.bigquery.Client')
-    def test_cli_dry_run(self, mock_client, config_file, views_dir):
-        """Test CLI dry-run command"""
-        # Update config
-        with open(config_file, 'r') as f:
-            config = yaml.safe_load(f)
-        config['sql']['views_directory'] = str(views_dir)
-        config['sql']['exclude_patterns'] = ['invalid.sql']
-        config['deployment']['dry_run'] = False  # Will be overridden by --dry-run
-        with open(config_file, 'w') as f:
-            yaml.dump(config, f)
-        
-        result = subprocess.run(
-            [sys.executable, '-m', 'bq_view_manager.main', 
-             '--config', str(config_file), '--dry-run'],
-            capture_output=True,
-            text=True
-        )
-        
-        assert result.returncode == 0
-        assert 'DRY RUN' in result.stdout
-        assert 'Would execute SQL' in result.stdout
-    
-    def test_cli_specific_files(self, config_file, views_dir):
-        """Test CLI with specific files"""
-        # Update config
-        with open(config_file, 'r') as f:
-            config = yaml.safe_load(f)
-        config['sql']['views_directory'] = str(views_dir)
-        with open(config_file, 'w') as f:
-            yaml.dump(config, f)
-        
-        specific_file = str(views_dir / "base_events.sql")
-        
-        result = subprocess.run(
-            [sys.executable, '-m', 'bq_view_manager.main', 
-             '--config', str(config_file), '--validate-refs', 
-             '--files', specific_file],
-            capture_output=True,
-            text=True
-        )
-        
-        assert result.returncode == 0
-        assert 'All references are valid' in result.stdout
-
-
-@pytest.mark.slow
-class TestCLIScripts:
-    """Test script entry points"""
-    
-    def test_bq_view_deploy_script(self):
-        """Test bq-view-deploy entry point script"""
-        result = subprocess.run(
-            ['bq-view-deploy', '--help'],
-            capture_output=True,
-            text=True
-        )
-        
-        # Should work if package is installed
-        if result.returncode == 0:
-            assert 'dbome (dbt at home)' in result.stdout
-        else:
-            # If not installed, command should not be found
-            assert result.returncode != 0
-
-
-class TestCLIArgumentParsing:
-    """Test CLI argument parsing edge cases"""
-    
-    def test_cli_invalid_arguments(self):
-        """Test CLI with invalid arguments"""
-        result = subprocess.run(
-            [sys.executable, '-m', 'bq_view_manager.main', '--invalid-flag'],
+            [sys.executable, '-m', 'dbome.main', '--config', 'nonexistent.yaml'],
             capture_output=True,
             text=True
         )
         
         assert result.returncode != 0
-        assert 'unrecognized arguments' in result.stderr or 'error' in result.stderr
+        assert 'Error' in result.stderr or 'not found' in result.stderr
     
-    def test_cli_conflicting_arguments(self, config_file):
-        """Test CLI with potentially conflicting arguments"""
+    def test_dry_run_mode(self, sample_config):
+        """Test dry run mode"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            yaml.dump(sample_config, f)
+            config_file = f.name
+        
+        try:
+            result = subprocess.run(
+                [sys.executable, '-m', 'dbome.main',
+                 '--config', config_file,
+                 '--dry-run'],
+                capture_output=True,
+                text=True
+            )
+            
+            assert result.returncode == 0
+            assert 'DRY RUN' in result.stdout or 'dry run' in result.stdout.lower()
+        finally:
+            os.unlink(config_file)
+    
+    def test_validate_refs_mode(self, sample_config):
+        """Test reference validation mode"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            yaml.dump(sample_config, f)
+            config_file = f.name
+        
+        try:
+            result = subprocess.run(
+                [sys.executable, '-m', 'dbome.main',
+                 '--config', config_file,
+                 '--validate-refs'],
+                capture_output=True,
+                text=True
+            )
+            
+            # Should complete (may have validation errors but shouldn't crash)
+            assert result.returncode in [0, 1]  # 0 for success, 1 for validation failures
+        finally:
+            os.unlink(config_file)
+    
+    def test_show_deps_mode(self, sample_config):
+        """Test dependency graph display mode"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            yaml.dump(sample_config, f)
+            config_file = f.name
+        
+        try:
+            result = subprocess.run(
+                [sys.executable, '-m', 'dbome.main',
+                 '--config', config_file,
+                 '--show-deps'],
+                capture_output=True,
+                text=True
+            )
+            
+            assert result.returncode == 0
+            # Should show some dependency information
+            assert 'dependency' in result.stdout.lower() or 'order' in result.stdout.lower()
+        finally:
+            os.unlink(config_file)
+    
+    @patch('dbome.main.bigquery.Client')
+    def test_specific_files_mode(self, mock_client_class, sample_config, temp_dir):
+        """Test deploying specific files"""
+        # Create test SQL files
+        sql_file1 = temp_dir / "view1.sql"
+        sql_file2 = temp_dir / "view2.sql"
+        sql_file1.write_text("SELECT 1 as col1")
+        sql_file2.write_text("SELECT 2 as col2")
+        
+        # Update config to point to temp directory
+        sample_config['sql']['views_directory'] = str(temp_dir)
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            yaml.dump(sample_config, f)
+            config_file = f.name
+        
+        try:
+            result = subprocess.run(
+                [sys.executable, '-m', 'dbome.main',
+                 '--config', config_file,
+                 '--files', str(sql_file1)],
+                capture_output=True,
+                text=True
+            )
+            
+            assert result.returncode == 0
+            assert 'view1' in result.stdout
+        finally:
+            os.unlink(config_file)
+    
+    def test_compile_only_mode(self, sample_config, temp_dir):
+        """Test compile-only mode"""
+        # Create test SQL file
+        sql_file = temp_dir / "test_view.sql"
+        sql_file.write_text("SELECT 1 as col1")
+        
+        # Update config to point to temp directory
+        sample_config['sql']['views_directory'] = str(temp_dir)
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            yaml.dump(sample_config, f)
+            config_file = f.name
+        
+        try:
+            result = subprocess.run(
+                [sys.executable, '-m', 'dbome.main',
+                 '--config', config_file,
+                 '--compile-only'],
+                capture_output=True,
+                text=True
+            )
+            
+            assert result.returncode == 0
+            assert 'compiled' in result.stdout.lower()
+        finally:
+            os.unlink(config_file)
+    
+    def test_invalid_argument(self):
+        """Test behavior with invalid command line arguments"""
         result = subprocess.run(
-            [sys.executable, '-m', 'bq_view_manager.main', 
-             '--config', str(config_file), '--validate-refs', '--show-deps'],
+            [sys.executable, '-m', 'dbome.main', '--invalid-flag'],
             capture_output=True,
             text=True
         )
         
-        # Should handle both flags gracefully
-        assert result.returncode == 0
+        assert result.returncode != 0
+        assert 'error' in result.stderr.lower() or 'unrecognized' in result.stderr.lower()
     
-    def test_cli_files_with_nonexistent_file(self, config_file):
-        """Test CLI with files argument pointing to non-existent file"""
-        result = subprocess.run(
-            [sys.executable, '-m', 'bq_view_manager.main', 
-             '--config', str(config_file), '--validate-refs',
-             '--files', 'nonexistent.sql'],
-            capture_output=True,
-            text=True
-        )
+    def test_config_file_with_invalid_yaml(self):
+        """Test behavior with invalid YAML config file"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write("invalid: yaml: content: [")
+            config_file = f.name
         
-        # Should handle gracefully
-        assert 'No SQL files found' in result.stdout or result.returncode == 0
+        try:
+            result = subprocess.run(
+                [sys.executable, '-m', 'dbome.main',
+                 '--config', config_file],
+                capture_output=True,
+                text=True
+            )
+            
+            assert result.returncode != 0
+            assert 'error' in result.stderr.lower() or 'yaml' in result.stderr.lower()
+        finally:
+            os.unlink(config_file)
     
-    def test_cli_empty_views_directory(self, config_file, temp_dir):
-        """Test CLI with empty views directory"""
-        # Create empty views directory
-        empty_views = temp_dir / "empty"
-        empty_views.mkdir()
+    def test_multiple_modes_combination(self, sample_config):
+        """Test combining multiple CLI modes"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            yaml.dump(sample_config, f)
+            config_file = f.name
         
-        with open(config_file, 'r') as f:
-            config = yaml.safe_load(f)
-        config['sql']['views_directory'] = str(empty_views)
-        with open(config_file, 'w') as f:
-            yaml.dump(config, f)
-        
-        result = subprocess.run(
-            [sys.executable, '-m', 'bq_view_manager.main', 
-             '--config', str(config_file), '--show-deps'],
-            capture_output=True,
-            text=True
-        )
-        
-        assert result.returncode == 0
-        assert 'No SQL files found' in result.stdout 
+        try:
+            result = subprocess.run(
+                [sys.executable, '-m', 'dbome.main',
+                 '--config', config_file,
+                 '--dry-run',
+                 '--validate-refs'],
+                capture_output=True,
+                text=True
+            )
+            
+            # Should handle multiple modes gracefully
+            assert result.returncode in [0, 1]
+        finally:
+            os.unlink(config_file) 

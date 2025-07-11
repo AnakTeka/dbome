@@ -106,16 +106,16 @@ git commit -m "Add user analytics views"
 
 ```bash
 # Deploy all views
-bq-view-deploy
+dbome
 
 # Dry run (see what would be deployed)
-bq-view-deploy --dry-run
+dbome --dry-run
 
 # Deploy specific files only
-bq-view-deploy --files sql/views/user_metrics.sql
+dbome --files sql/views/user_metrics.sql
 
 # Compile templates without deploying
-bq-view-deploy --compile-only
+dbome --compile-only
 ```
 
 ### Make Commands
@@ -133,12 +133,12 @@ bq-view-deploy --compile-only
 
 ### Dependency Visualization
 ```bash
-bq-view-deploy --show-deps
+dbome --show-deps
 ```
 
 ### Reference Validation
 ```bash
-bq-view-deploy --validate-refs
+dbome --validate-refs
 ```
 
 ### Compiled SQL Output

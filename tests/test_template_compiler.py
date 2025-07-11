@@ -4,7 +4,7 @@ Unit tests for SQLTemplateCompiler
 
 import pytest
 from pathlib import Path
-from bq_view_manager.template_compiler import SQLTemplateCompiler
+from dbome.template_compiler import SQLTemplateCompiler
 
 
 class TestSQLTemplateCompiler:
