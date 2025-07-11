@@ -135,13 +135,16 @@ You can also run deployments manually:
 
 ```bash
 # Deploy all views
-uv run python -m bq_view_manager.main
+bq-view-deploy
 
 # Dry run (see what would be deployed)
-uv run python -m bq_view_manager.main --dry-run
+bq-view-deploy --dry-run
 
 # Use different config file
-uv run python -m bq_view_manager.main --config custom-config.yaml
+bq-view-deploy --config custom-config.yaml
+
+# Deploy specific files only
+bq-view-deploy --files sql/views/user_metrics.sql sql/views/sales.sql
 ```
 
 ### Testing Changes
@@ -149,7 +152,7 @@ uv run python -m bq_view_manager.main --config custom-config.yaml
 Use dry run mode to test your SQL without deploying:
 
 ```bash
-uv run python -m bq_view_manager.main --dry-run
+bq-view-deploy --dry-run
 ```
 
 ## ⚙️ Configuration
@@ -183,12 +186,36 @@ deployment:
 
 ## 🔧 Commands
 
+### CLI Commands
 | Command | Description |
 |---------|-------------|
-| `uv run python -m bq_view_manager.main` | Deploy all SQL views |
-| `uv run python -m bq_view_manager.main --dry-run` | Preview deployments without executing |
-| `uv run python -m bq_view_manager.main --config FILE` | Use custom config file |
-| `bq-view-deploy` | Shortcut command (after installation) |
+| `bq-view-deploy` | Deploy all SQL views |
+| `bq-view-deploy --dry-run` | Preview deployments without executing |
+| `bq-view-deploy --config FILE` | Use custom config file |
+| `bq-view-deploy --files FILE1 FILE2` | Deploy specific files only |
+| `bq-view-deploy --version` | Show version information |
+| `bq-view-deploy --help` | Show detailed help with examples |
+
+### Make Commands (Even Easier!)
+| Command | Description |
+|---------|-------------|
+| `make` or `make help` | Show available commands |
+| `make deploy` | Deploy all views |
+| `make dry-run` | Preview deployments |
+| `make check` | Validate SQL syntax |
+| `make setup` | Run setup script |
+| `make clean` | Clean build artifacts |
+
+### Shell Aliases (Super Fast!)
+Add these to your `~/.bashrc`, `~/.zshrc`, or equivalent:
+```bash
+alias bq-deploy='bq-view-deploy'
+alias bq-dry='bq-view-deploy --dry-run'
+alias bq-check='bq-view-deploy --dry-run'
+# Or use make commands
+alias bq-deploy='make deploy'
+alias bq-dry='make dry-run'
+```
 
 ## 🎯 Workflow Examples
 
@@ -228,8 +255,12 @@ git commit -m "Update user summary view with new metrics"
 
 ```bash
 # 1. Make changes to SQL files
-# 2. Test with dry run
-uv run python -m bq_view_manager.main --dry-run
+# 2. Test with dry run (multiple ways to do this!)
+bq-view-deploy --dry-run
+# OR
+make dry-run
+# OR with alias
+bq-dry
 
 # 3. If satisfied, commit
 git add .

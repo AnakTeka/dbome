@@ -19,6 +19,8 @@ import sqlglot
 from sqlglot import exp, parse_one
 from sqlglot.errors import ParseError
 
+from . import __version__
+
 console = Console()
 
 class BigQueryViewManager:
@@ -247,10 +249,42 @@ def main():
     """Main entry point"""
     import argparse
     
-    parser = argparse.ArgumentParser(description="Deploy SQL view files to BigQuery")
-    parser.add_argument("--config", default="config.yaml", help="Path to config file")
-    parser.add_argument("--dry-run", action="store_true", help="Show what would be done without executing")
-    parser.add_argument("--files", nargs="+", help="Specific SQL files to process (instead of all files)")
+    parser = argparse.ArgumentParser(
+        description="🚀 BigQuery View Manager - Git-based BigQuery View Management",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  bq-view-deploy                     Deploy all views
+  bq-view-deploy --dry-run           Preview what would be deployed
+  bq-view-deploy --files view1.sql   Deploy specific files only
+  bq-view-deploy --config prod.yaml  Use different config file
+
+For more help, visit: https://github.com/your-repo/bq-view-manager
+        """
+    )
+    
+    parser.add_argument(
+        "--version", 
+        action="version", 
+        version=f"BigQuery View Manager {__version__}"
+    )
+    parser.add_argument(
+        "--config", 
+        default="config.yaml", 
+        help="Path to config file (default: config.yaml)",
+        metavar="FILE"
+    )
+    parser.add_argument(
+        "--dry-run", 
+        action="store_true", 
+        help="Show what would be done without executing (safe preview mode)"
+    )
+    parser.add_argument(
+        "--files", 
+        nargs="+", 
+        help="Specific SQL files to process (default: all files in views directory)",
+        metavar="FILE"
+    )
     
     args = parser.parse_args()
     
