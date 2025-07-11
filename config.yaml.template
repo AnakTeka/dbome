@@ -1,0 +1,33 @@
+# BigQuery Configuration Template
+# Copy this file to config.yaml and update with your actual values
+# Last updated: 2025-01-11 - Testing selective post-commit hook
+
+bigquery:
+  project_id: "your-gcp-project-id"
+  dataset_id: "your_dataset_name"
+  location: "US"  # or EU, etc.
+  
+# Credentials (optional - will use default if not specified)
+# Uncomment and set path to your service account key if needed
+# google_application_credentials: "/path/to/service-account-key.json"
+
+# SQL file processing - Views only
+sql:
+  # Directory to scan for SQL view files
+  views_directory: "sql/views"
+  
+  # File patterns to include
+  include_patterns:
+    - "*.sql"
+  
+  # File patterns to exclude
+  exclude_patterns:
+    - "*.backup.sql"
+
+# Deployment settings
+deployment:
+  # Dry run mode (won't actually execute, just show what would be done)
+  dry_run: true
+  
+  # Verbose logging
+  verbose: true 

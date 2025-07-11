@@ -1,0 +1,312 @@
+# BigQuery View Manager
+
+Git-based BigQuery View Management Tool
+
+<!-- Last updated: 2025-01-11 for testing selective post-commit hook -->
+
+A Git-based repository that automatically deploys BigQuery views using native `CREATE OR REPLACE VIEW` SQL syntax and post-commit hooks. Store your view definitions in standard SQL files that can be executed directly in BigQuery, track changes with Git, and keep your BigQuery views in sync automatically.
+
+## 🚀 Features
+
+- **Git-based SQL Management**: Store and version control your SQL view files
+- **Automatic Deployment**: Post-commit hooks automatically update BigQuery views
+- **Native SQL Syntax**: Uses `CREATE OR REPLACE VIEW` statements directly
+- **Configuration-driven**: YAML configuration for flexible deployment settings
+- **Dry Run Mode**: Test deployments without making changes
+- **Rich CLI Output**: Beautiful console output with progress indicators
+- **Error Handling**: Graceful handling of deployment errors with detailed logging
+
+## 📁 Directory Structure
+
+```
+bq-view-manager/
+├── sql/
+│   └── views/          # SQL views with CREATE OR REPLACE VIEW syntax
+├── bq_view_manager/    # Python package
+│   ├── __init__.py
+│   └── main.py         # Main deployment script
+├── .git/hooks/
+│   └── post-commit     # Git hook for auto-deployment
+├── config.yaml         # BigQuery configuration
+├── pyproject.toml      # Python dependencies
+└── README.md
+```
+
+## 🛠️ Setup
+
+### 1. Prerequisites
+
+- Python 3.11.x or higher
+- [uv](https://docs.astral.sh/uv/) for fast package management (auto-installed by setup script)
+- Google Cloud SDK installed and authenticated
+- BigQuery dataset created in your GCP project
+
+### 2. Install Dependencies
+
+We use [uv](https://docs.astral.sh/uv/) for fast package management:
+
+```bash
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create virtual environment and install dependencies
+uv venv
+uv pip install -e .
+```
+
+Or use the automated setup script:
+```bash
+./setup.sh
+```
+
+### 3. Configure BigQuery
+
+Copy the configuration template and update with your settings:
+
+```bash
+cp config.yaml.template config.yaml
+```
+
+Edit `config.yaml` with your BigQuery project details:
+
+```yaml
+bigquery:
+  project_id: "your-gcp-project-id"
+  dataset_id: "your_dataset_name"
+  location: "US"
+```
+
+### 4. Authentication
+
+Choose one of these authentication methods:
+
+#### Option A: Application Default Credentials (Recommended)
+```bash
+gcloud auth application-default login
+```
+
+#### Option B: Service Account Key
+1. Create a service account in Google Cloud Console
+2. Download the JSON key file
+3. Update `config.yaml`:
+   ```yaml
+   google_application_credentials: "/path/to/service-account-key.json"
+   ```
+
+### 5. Initialize Git Repository
+
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+```
+
+The post-commit hook is now active and will deploy views automatically!
+
+## 📝 Usage
+
+### Adding SQL Views
+
+1. Create SQL files in the `sql/views/` directory using `CREATE OR REPLACE VIEW` syntax:
+
+```sql
+-- sql/views/user_metrics.sql
+CREATE OR REPLACE VIEW `your-project.your_dataset.user_metrics` AS
+SELECT 
+    user_id,
+    COUNT(*) as total_actions,
+    MAX(action_date) as last_action_date
+FROM `your-project.your_dataset.user_actions`
+GROUP BY user_id;
+```
+
+2. Commit your changes:
+
+```bash
+git add sql/views/user_metrics.sql
+git commit -m "Add user metrics view"
+```
+
+3. The post-commit hook automatically deploys the view to BigQuery!
+
+### Manual Deployment
+
+You can also run deployments manually:
+
+```bash
+# Deploy all views
+uv run python -m bq_view_manager.main
+
+# Dry run (see what would be deployed)
+uv run python -m bq_view_manager.main --dry-run
+
+# Use different config file
+uv run python -m bq_view_manager.main --config custom-config.yaml
+```
+
+### Testing Changes
+
+Use dry run mode to test your SQL without deploying:
+
+```bash
+uv run python -m bq_view_manager.main --dry-run
+```
+
+## ⚙️ Configuration
+
+### config.yaml Options
+
+```yaml
+bigquery:
+  project_id: "your-gcp-project-id"    # Required
+  dataset_id: "your_dataset_name"       # Required (for reference)
+  location: "US"                        # Optional, default: US
+
+sql:
+  views_directory: "sql/views"          # Directory to scan for view files
+  
+  include_patterns:                     # File patterns to include
+    - "*.sql"
+  
+  exclude_patterns:                     # File patterns to exclude
+    - "*.backup.sql"
+
+deployment:
+  dry_run: false                       # Dry run mode
+  verbose: true                        # Verbose logging
+```
+
+### Environment Variables
+
+- `GOOGLE_APPLICATION_CREDENTIALS`: Path to service account key
+- `GOOGLE_CLOUD_PROJECT`: Default GCP project ID
+
+## 🔧 Commands
+
+| Command | Description |
+|---------|-------------|
+| `uv run python -m bq_view_manager.main` | Deploy all SQL views |
+| `uv run python -m bq_view_manager.main --dry-run` | Preview deployments without executing |
+| `uv run python -m bq_view_manager.main --config FILE` | Use custom config file |
+| `bq-view-deploy` | Shortcut command (after installation) |
+
+## 🎯 Workflow Examples
+
+### Adding a New View
+
+```bash
+# 1. Create SQL file
+cat > sql/views/sales_summary.sql << EOF
+CREATE OR REPLACE VIEW \`project.dataset.sales_summary\` AS
+SELECT 
+    DATE(order_date) as sale_date,
+    SUM(amount) as total_sales,
+    COUNT(*) as order_count
+FROM \`project.dataset.orders\`
+GROUP BY DATE(order_date);
+EOF
+
+# 2. Commit and auto-deploy
+git add sql/views/sales_summary.sql
+git commit -m "Add sales summary view"
+# ✅ View automatically deployed to BigQuery!
+```
+
+### Updating an Existing View
+
+```bash
+# 1. Edit the SQL file
+vim sql/views/user_summary.sql
+
+# 2. Commit changes
+git add sql/views/user_summary.sql
+git commit -m "Update user summary view with new metrics"
+# ✅ View automatically updated in BigQuery!
+```
+
+### Testing Before Deployment
+
+```bash
+# 1. Make changes to SQL files
+# 2. Test with dry run
+uv run python -m bq_view_manager.main --dry-run
+
+# 3. If satisfied, commit
+git add .
+git commit -m "Update views"
+```
+
+## 🚨 Troubleshooting
+
+### Common Issues
+
+#### Authentication Errors
+```bash
+# Re-authenticate with gcloud
+gcloud auth application-default login
+
+# Or check service account key path
+echo $GOOGLE_APPLICATION_CREDENTIALS
+```
+
+#### Permission Errors
+Ensure your account has these BigQuery permissions:
+- `bigquery.datasets.get`
+- `bigquery.tables.create`
+- `bigquery.tables.update`
+- `bigquery.tables.get`
+
+#### Git Hook Not Running
+```bash
+# Check if hook is executable
+ls -la .git/hooks/post-commit
+
+# Make executable if needed
+chmod +x .git/hooks/post-commit
+```
+
+#### View Deployment Failures
+```bash
+# Run with verbose output
+uv run python -m bq_view_manager.main
+
+# Check SQL syntax in BigQuery console
+# Verify table references exist
+```
+
+### Debugging
+
+Enable verbose logging in `config.yaml`:
+```yaml
+deployment:
+  verbose: true
+```
+
+Or run with dry run to see what would be executed:
+```bash
+uv run python -m bq_view_manager.main --dry-run
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Make your changes
+4. Add tests for new functionality
+5. Commit your changes: `git commit -m 'Add feature'`
+6. Push to the branch: `git push origin feature-name`
+7. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🆘 Support
+
+- Create an issue for bug reports or feature requests
+- Check existing issues for common problems
+- Refer to [BigQuery documentation](https://cloud.google.com/bigquery/docs) for SQL help
+
+---
+
+**Happy SQL coding! 🎉**
