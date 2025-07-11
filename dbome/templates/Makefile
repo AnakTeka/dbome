@@ -54,13 +54,13 @@ setup:
 .PHONY: deploy
 deploy:
 	@echo "$(YELLOW)🚀 Deploying views to BigQuery...$(NC)"
-	@$(UV) run dbome --config $(CONFIG_FILE)
+	@$(UV) run dbome run --config $(CONFIG_FILE)
 
 # Dry run
 .PHONY: dry-run
 dry-run:
 	@echo "$(YELLOW)🔍 Preview deployment (dry run)...$(NC)"
-	@$(UV) run dbome --config $(CONFIG_FILE) --dry-run
+	@$(UV) run dbome run --config $(CONFIG_FILE) --dry
 
 # Check SQL syntax and references
 .PHONY: check
@@ -71,19 +71,19 @@ check: validate
 .PHONY: validate
 validate:
 	@echo "$(YELLOW)🔍 Validating SQL references...$(NC)"
-	@$(UV) run dbome --config $(CONFIG_FILE) --validate-refs
+	@$(UV) run dbome validate --config $(CONFIG_FILE)
 
 # Compile templates
 .PHONY: compile
 compile:
 	@echo "$(YELLOW)🔧 Compiling SQL templates...$(NC)"
-	@$(UV) run dbome --config $(CONFIG_FILE) --compile-only
+	@$(UV) run dbome compile --config $(CONFIG_FILE)
 
 # Show dependencies
 .PHONY: deps
 deps:
 	@echo "$(YELLOW)📊 Showing dependency graph...$(NC)"
-	@$(UV) run dbome --config $(CONFIG_FILE) --show-deps
+	@$(UV) run dbome deps --config $(CONFIG_FILE)
 
 # Clean build artifacts
 .PHONY: clean

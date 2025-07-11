@@ -48,7 +48,7 @@ For your DS friend using SageMaker:
 2. **Create directory**: `mkdir my-bq-project && cd my-bq-project`
 3. **Install dbome**: `curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash`
 4. **Configure BigQuery**: Edit `config.yaml` with your project details
-5. **Deploy views**: `uv run dbome --dry-run` (test) then `uv run dbome` (deploy)
+5. **Deploy views**: `uv run dbome run --dry` (test) then `uv run dbome run` (deploy)
 
 Zero Python environment management needed! 🎉
 
@@ -78,9 +78,9 @@ uv run dbome init
 gcloud auth application-default login
 
 # Test your setup
-uv run dbome --dry-run  # if using uv
+uv run dbome run --dry  # if using uv
 # or
-dbome --dry-run         # if using pip
+dbome run --dry         # if using pip
 ```
 
 ## 📝 Quick Start
@@ -119,10 +119,10 @@ WHERE event_timestamp >= CURRENT_DATE()
 ### 4. Deploy Your Views
 ```bash
 # Test deployment
-uv run dbome --dry-run
+uv run dbome run --dry
 
 # Deploy to BigQuery
-uv run dbome
+uv run dbome run
 
 # Or use git (auto-deployment)
 git add sql/views/user_events.sql
@@ -188,20 +188,25 @@ git commit -m "Update analytics views"
 
 | Command | Description |
 |---------|-------------|
+| `dbome` | Show help |
 | `dbome init` | Initialize a new project in current directory |
-| `dbome --help` | Show help |
+| `dbome run` | Deploy all views |
+| `dbome compile` | Compile templates |
+| `dbome deps` | Show dependencies |
+| `dbome validate` | Validate references |
 
 ### Project Commands (inside your project)
 
 | Command | Description |
 |---------|-------------|
-| `uv run dbome` | Deploy all views |
-| `uv run dbome --dry-run` | Preview deployments |
-| `uv run dbome --files FILE1 FILE2` | Deploy specific files only |
-| `uv run dbome --validate-refs` | Validate all ref() references |
-| `uv run dbome --show-deps` | Show dependency graph and deployment order |
-| `uv run dbome --compile-only` | Compile templates to compiled/ directory |
-| `uv run dbome --config FILE` | Use custom config file |
+| `uv run dbome` | Show help |
+| `uv run dbome run` | Deploy all views |
+| `uv run dbome run --dry` | Preview deployments |
+| `uv run dbome run --select FILE1 FILE2` | Deploy specific files only |
+| `uv run dbome validate` | Validate all ref() references |
+| `uv run dbome deps` | Show dependency graph and deployment order |
+| `uv run dbome compile` | Compile templates to compiled/ directory |
+| `uv run dbome COMMAND --config FILE` | Use custom config file |
 
 > **Note**: If you installed via pip, replace `uv run dbome` with just `dbome`
 
@@ -262,7 +267,7 @@ GROUP BY user_id
 ### Dependency Visualization
 
 ```bash
-dbome --show-deps
+dbome deps
 ```
 
 Output:
@@ -281,7 +286,7 @@ Deployment Order:
 ### Reference Validation
 
 ```bash
-dbome --validate-refs
+dbome validate
 ```
 
 Validates all `{{ ref('view_name') }}` calls before deployment.

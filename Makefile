@@ -50,12 +50,12 @@ dev-install:
 # Deploy all views
 deploy:
 	@echo "🚀 Deploying views to BigQuery..."
-	@$(UV) run dbome --config $(CONFIG_FILE)
+	@$(UV) run dbome run --config $(CONFIG_FILE)
 
 # Dry run - show what would be deployed
 dry-run:
 	@echo "🔍 Dry run - showing what would be deployed..."
-	@$(UV) run dbome --config $(CONFIG_FILE) --dry-run
+	@$(UV) run dbome run --config $(CONFIG_FILE) --dry
 
 # Check/validate SQL files
 check: dry-run
@@ -63,17 +63,17 @@ check: dry-run
 # Compile SQL templates without deploying
 compile:
 	@echo "📄 Compiling SQL templates..."
-	@$(UV) run dbome --config $(CONFIG_FILE) --compile-only
+	@$(UV) run dbome compile --config $(CONFIG_FILE)
 
 # Show dependency graph
 show-deps:
 	@echo "📊 Showing dependency graph..."
-	@$(UV) run dbome --config $(CONFIG_FILE) --show-deps
+	@$(UV) run dbome deps --config $(CONFIG_FILE)
 
 # Validate references
 validate-refs:
 	@echo "🔍 Validating references..."
-	@$(UV) run dbome --config $(CONFIG_FILE) --validate-refs
+	@$(UV) run dbome validate --config $(CONFIG_FILE)
 
 # Clean build artifacts
 clean:
@@ -93,7 +93,7 @@ deploy-confirm:
 # Deploy specific files (usage: make deploy-files FILES="file1.sql file2.sql")
 deploy-files:
 	@echo "🚀 Deploying specific files: $(FILES)"
-	@$(UV) run dbome --config $(CONFIG_FILE) --files $(FILES)
+	@$(UV) run dbome run --config $(CONFIG_FILE) --select $(FILES)
 
 # Testing targets
 test:

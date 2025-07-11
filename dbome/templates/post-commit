@@ -41,10 +41,10 @@ echo -e "${YELLOW}🚀 Deploying ${#files_array[@]} SQL file(s)...${NC}"
 # Try to deploy using uv first, then fall back to python
 if command -v uv &> /dev/null; then
     echo -e "${BLUE}📦 Using uv for deployment${NC}"
-    uv run python -m dbome.main --files "${files_array[@]}"
+    uv run python -m dbome.main run --select "${files_array[@]}"
 else
     echo -e "${BLUE}🐍 Using python for deployment${NC}"
-    python -m dbome.main --files "${files_array[@]}"
+    python -m dbome.main run --select "${files_array[@]}"
 fi
 
 if [ $? -eq 0 ]; then

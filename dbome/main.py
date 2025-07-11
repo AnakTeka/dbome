@@ -470,13 +470,12 @@ def main():
 Examples:
   dbome init                         Initialize project in current directory
   dbome init my-project              Initialize a new project directory
-  dbome                              Deploy all views
-  dbome --dry-run                    Preview what would be deployed
-  dbome --files view1.sql            Deploy specific files only
-  dbome --validate-refs              Validate all ref() references
-  dbome --show-deps                  Show dependency graph
-  dbome --compile-only               Compile templates to compiled/ directory
-  dbome --config prod.yaml           Use different config file
+  dbome run                          Deploy all views
+  dbome run --dry                    Preview what would be deployed
+  dbome run --select view1.sql       Deploy specific files only
+  dbome compile                      Compile templates to compiled/ directory
+  dbome deps                         Show dependency graph
+  dbome validate                     Validate all ref() references
 
 For more help, visit: https://github.com/your-repo/dbome
         """
@@ -489,58 +488,96 @@ For more help, visit: https://github.com/your-repo/dbome
     init_parser = subparsers.add_parser('init', help='Initialize a new dbome project')
     init_parser.add_argument('project_name', nargs='?', help='Name of the project directory to create (optional - defaults to current directory)')
     
-    # If no subcommand provided, treat as deployment command (backwards compatibility)
-    
-    parser.add_argument(
-        "--version", 
-        action="version", 
-        version=f"dbome (dbt at home) {__version__}"
-    )
-    parser.add_argument(
+    # Run subcommand
+    run_parser = subparsers.add_parser('run', help='Deploy SQL views to BigQuery')
+    run_parser.add_argument(
         "--config", 
         default="config.yaml", 
         help="Path to config file (default: config.yaml)",
         metavar="FILE"
     )
-    parser.add_argument(
-        "--dry-run", 
+    run_parser.add_argument(
+        "--dry", 
         action="store_true", 
         help="Show what would be done without executing (safe preview mode)"
     )
-    parser.add_argument(
-        "--files", 
+    run_parser.add_argument(
+        "--select", 
         nargs="+", 
         help="Specific SQL files to process (default: all files in views directory)",
         metavar="FILE"
     )
-    parser.add_argument(
-        "--validate-refs", 
-        action="store_true", 
-        help="Validate all ref() references and exit"
+    
+    # Compile subcommand
+    compile_parser = subparsers.add_parser('compile', help='Compile SQL templates without deploying')
+    compile_parser.add_argument(
+        "--config", 
+        default="config.yaml", 
+        help="Path to config file (default: config.yaml)",
+        metavar="FILE"
     )
-    parser.add_argument(
-        "--show-deps", 
-        action="store_true", 
-        help="Show dependency graph and deployment order"
+    compile_parser.add_argument(
+        "--select", 
+        nargs="+", 
+        help="Specific SQL files to compile (default: all files in views directory)",
+        metavar="FILE"
     )
+    
+    # Deps subcommand
+    deps_parser = subparsers.add_parser('deps', help='Show dependency graph and deployment order')
+    deps_parser.add_argument(
+        "--config", 
+        default="config.yaml", 
+        help="Path to config file (default: config.yaml)",
+        metavar="FILE"
+    )
+    deps_parser.add_argument(
+        "--select", 
+        nargs="+", 
+        help="Specific SQL files to analyze (default: all files in views directory)",
+        metavar="FILE"
+    )
+    
+    # Validate subcommand
+    validate_parser = subparsers.add_parser('validate', help='Validate all ref() references')
+    validate_parser.add_argument(
+        "--config", 
+        default="config.yaml", 
+        help="Path to config file (default: config.yaml)",
+        metavar="FILE"
+    )
+    validate_parser.add_argument(
+        "--select", 
+        nargs="+", 
+        help="Specific SQL files to validate (default: all files in views directory)",
+        metavar="FILE"
+    )
+    
+    # Global arguments
     parser.add_argument(
-        "--compile-only", 
-        action="store_true", 
-        help="Compile SQL templates without deploying (saves to compiled directory)"
+        "--version", 
+        action="version", 
+        version=f"dbome (dbt at home) {__version__}"
     )
     
     args = parser.parse_args()
+    
+    # If no command provided, show help
+    if not args.command:
+        parser.print_help()
+        return
     
     # Handle init command
     if args.command == 'init':
         init_project(args.project_name)
         return
     
-    # Load and potentially modify config
+    # All other commands need a config file
     config_path = args.config
     temp_config = None
     
-    if args.dry_run:
+    # Handle dry run for run command
+    if args.command == 'run' and args.dry:
         import tempfile
         
         # Load config and modify dry_run setting
@@ -557,63 +594,73 @@ For more help, visit: https://github.com/your-repo/dbome
     try:
         manager = BigQueryViewManager(config_path)
         
-        # Handle validation, dependency, and compilation options
-        if args.validate_refs or args.show_deps or args.compile_only:
-            sql_files = manager.find_sql_files(args.files)
+        # Get selected files
+        selected_files = getattr(args, 'select', None)
+        
+        if args.command == 'run':
+            manager.deploy_views(selected_files)
+        
+        elif args.command == 'compile':
+            sql_files = manager.find_sql_files(selected_files)
+            if not sql_files:
+                console.print("[yellow]No SQL files found to compile[/yellow]")
+                return
+            
+            console.print(f"\n[bold blue]📄 Compiling SQL Templates[/bold blue]\n")
+            
+            # Temporarily enable compiled output
+            original_save_compiled = manager.config.get('deployment', {}).get('save_compiled', False)
+            manager.config.setdefault('deployment', {})['save_compiled'] = True
+            
+            try:
+                compiled_sqls = manager.template_compiler.compile_and_save_all(sql_files)
+                
+                if compiled_sqls:
+                    console.print(f"[green]✅ Compiled {len(compiled_sqls)} SQL files[/green]")
+                    compiled_dir = manager.config.get('sql', {}).get('compiled_directory', 'compiled/views')
+                    console.print(f"[dim]  Output directory: {compiled_dir}[/dim]")
+                else:
+                    console.print("[yellow]No SQL files were compiled[/yellow]")
+                    
+            finally:
+                # Restore original setting
+                manager.config['deployment']['save_compiled'] = original_save_compiled
+        
+        elif args.command == 'deps':
+            sql_files = manager.find_sql_files(selected_files)
             if not sql_files:
                 console.print("[yellow]No SQL files found to analyze[/yellow]")
                 return
             
-            if args.validate_refs:
-                errors = manager.template_compiler.validate_references(sql_files)
-                if errors:
-                    console.print("[red]Validation errors found:[/red]")
-                    for error in errors:
-                        console.print(f"  ❌ {error}")
-                    sys.exit(1)
+            graph = manager.template_compiler.build_dependency_graph(sql_files)
+            order = manager.template_compiler.get_deployment_order(sql_files)
+            
+            console.print("[bold blue]Dependency Graph:[/bold blue]")
+            for view, deps in graph.items():
+                if deps:
+                    console.print(f"  {view} → {', '.join(deps)}")
                 else:
-                    console.print("[green]✅ All references are valid[/green]")
+                    console.print(f"  {view} (no dependencies)")
             
-            if args.show_deps:
-                graph = manager.template_compiler.build_dependency_graph(sql_files)
-                order = manager.template_compiler.get_deployment_order(sql_files)
-                
-                console.print("[bold blue]Dependency Graph:[/bold blue]")
-                for view, deps in graph.items():
-                    if deps:
-                        console.print(f"  {view} → {', '.join(deps)}")
-                    else:
-                        console.print(f"  {view} (no dependencies)")
-                
-                console.print(f"\n[bold green]Deployment Order:[/bold green]")
-                for i, view in enumerate(order, 1):
-                    console.print(f"  {i}. {view}")
-            
-            if args.compile_only:
-                console.print(f"\n[bold blue]📄 Compiling SQL Templates[/bold blue]\n")
-                
-                # Temporarily enable compiled output
-                original_save_compiled = manager.config.get('deployment', {}).get('save_compiled', False)
-                manager.config.setdefault('deployment', {})['save_compiled'] = True
-                
-                try:
-                    compiled_sqls = manager.template_compiler.compile_and_save_all(sql_files)
-                    
-                    if compiled_sqls:
-                        console.print(f"[green]✅ Compiled {len(compiled_sqls)} SQL files[/green]")
-                        compiled_dir = manager.config.get('sql', {}).get('compiled_directory', 'compiled/views')
-                        console.print(f"[dim]  Output directory: {compiled_dir}[/dim]")
-                    else:
-                        console.print("[yellow]No SQL files were compiled[/yellow]")
-                        
-                finally:
-                    # Restore original setting
-                    manager.config['deployment']['save_compiled'] = original_save_compiled
-            
-            return
+            console.print(f"\n[bold green]Deployment Order:[/bold green]")
+            for i, view in enumerate(order, 1):
+                console.print(f"  {i}. {view}")
         
-        # Normal deployment
-        manager.deploy_views(args.files)
+        elif args.command == 'validate':
+            sql_files = manager.find_sql_files(selected_files)
+            if not sql_files:
+                console.print("[yellow]No SQL files found to validate[/yellow]")
+                return
+            
+            errors = manager.template_compiler.validate_references(sql_files)
+            if errors:
+                console.print("[red]Validation errors found:[/red]")
+                for error in errors:
+                    console.print(f"  ❌ {error}")
+                sys.exit(1)
+            else:
+                console.print("[green]✅ All references are valid[/green]")
+    
     finally:
         # Clean up temporary config file if created
         if temp_config:
