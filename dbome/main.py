@@ -363,7 +363,7 @@ class BigQueryViewManager:
                         str(info['path']), 
                         sql_info['name'], 
                         sql_info['full_name'],
-                        "✓ Ready"
+                        "✓ Valid"
                     )
                 else:
                     table.add_row(
@@ -380,8 +380,10 @@ class BigQueryViewManager:
             console.print("[yellow]No valid view files found (must contain CREATE OR REPLACE VIEW)[/yellow]")
             return
         
-        # Deploy views
+        # Deploy views and track results
+        deployment_results = []
         success_count = 0
+        
         for i, sql_info in enumerate(processed_files, 1):
             action = "Dry-run checking" if self.config['deployment']['dry_run'] else "Deploying"
             
@@ -389,8 +391,34 @@ class BigQueryViewManager:
             console.print(f"[{i}/{len(processed_files)}] {action} {sql_info['name']}...")
             
             # Then execute (any errors will appear after the progress message)
-            if self.execute_view_sql(sql_info):
+            success = self.execute_view_sql(sql_info)
+            if success:
                 success_count += 1
+            
+            # Track result for results table
+            deployment_results.append({
+                'view_name': sql_info['name'],
+                'full_name': sql_info['full_name'],
+                'success': success
+            })
+        
+        # Create results table
+        results_table = Table(title="Deployment Results")
+        results_table.add_column("View Name", style="green")
+        results_table.add_column("Full Name", style="magenta")
+        results_table.add_column("Result", style="bold")
+        
+        for result in deployment_results:
+            status = "✅ Success" if result['success'] else "❌ Failed"
+            status_style = "green" if result['success'] else "red"
+            results_table.add_row(
+                result['view_name'],
+                result['full_name'],
+                f"[{status_style}]{status}[/{status_style}]"
+            )
+        
+        console.print()
+        console.print(results_table)
         
         result_text = "validated" if self.config['deployment']['dry_run'] else "deployed"
         total_files = len(processed_files)
