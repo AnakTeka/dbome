@@ -26,6 +26,7 @@ sql:
   # File patterns to exclude
   exclude_patterns:
     - "*.backup.sql"
+    - "*.example"
 
 # Deployment settings
 deployment:
