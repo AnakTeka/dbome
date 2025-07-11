@@ -1,4 +1,4 @@
--- User metrics view using ref() syntax (MODIFIED AGAIN - B)
+-- User metrics view using ref() syntax (MODIFIED FINAL - B)  
 -- This demonstrates dbt-like functionality - depends on A
 
 CREATE OR REPLACE VIEW `your-project.your_dataset.user_metrics` AS

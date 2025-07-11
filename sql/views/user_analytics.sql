@@ -1,4 +1,4 @@
--- User analytics view - MODIFIED - depends on MULTIPLE views (B and C)
+-- User analytics view - FINAL TEST - depends on MULTIPLE views (B and C)
 -- This demonstrates a single view with multiple ref() references
 
 CREATE OR REPLACE VIEW `your-project.your_dataset.user_analytics` AS
