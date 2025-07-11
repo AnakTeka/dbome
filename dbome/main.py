@@ -381,21 +381,16 @@ class BigQueryViewManager:
             return
         
         # Deploy views
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
+        success_count = 0
+        for i, sql_info in enumerate(processed_files, 1):
+            action = "Dry-run checking" if self.config['deployment']['dry_run'] else "Deploying"
             
-            task = progress.add_task("Processing views...", total=len(processed_files))
+            # Show progress message first
+            console.print(f"[{i}/{len(processed_files)}] {action} {sql_info['name']}...")
             
-            success_count = 0
-            for sql_info in processed_files:
-                action = "Dry-run checking" if self.config['deployment']['dry_run'] else "Deploying"
-                progress.update(task, description=f"{action} {sql_info['name']}...")
-                if self.execute_view_sql(sql_info):
-                    success_count += 1
-                progress.advance(task)
+            # Then execute (any errors will appear after the progress message)
+            if self.execute_view_sql(sql_info):
+                success_count += 1
         
         result_text = "validated" if self.config['deployment']['dry_run'] else "deployed"
         console.print(f"\n[bold green]✅ Processing completed![/bold green]")
