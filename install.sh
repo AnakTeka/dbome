@@ -4,32 +4,41 @@
 
 set -e  # Exit on error
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-BOLD='\033[1m'
-NC='\033[0m' # No Color
+# Colors for output - check if terminal supports colors
+if [ -t 1 ] && [ -n "$TERM" ] && [ "$TERM" != "dumb" ]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    BOLD='\033[1m'
+    NC='\033[0m' # No Color
+else
+    RED=''
+    GREEN=''
+    YELLOW=''
+    BLUE=''
+    BOLD=''
+    NC=''
+fi
 
 # Configuration
 PACKAGE_NAME="dbome"
 
 # Helper functions
 log() {
-    echo -e "${BLUE}[dbome]${NC} $1"
+    printf "${BLUE}[dbome]${NC} %s\n" "$1"
 }
 
 success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    printf "${GREEN}✅ %s${NC}\n" "$1"
 }
 
 warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    printf "${YELLOW}⚠️  %s${NC}\n" "$1"
 }
 
 error() {
-    echo -e "${RED}❌ $1${NC}"
+    printf "${RED}❌ %s${NC}\n" "$1"
     exit 1
 }
 
@@ -121,9 +130,9 @@ dependencies = [
 ]
 requires-python = ">=3.8"
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[tool.uv.sources]
+dbome = { path = "/home/yoga/tmp/people/andre" }
+
 EOF
     success "Created pyproject.toml"
 fi
@@ -140,32 +149,32 @@ success "dbome project initialized"
 
 # Final instructions
 echo
-echo -e "${BOLD}🎉 Installation completed successfully!${NC}"
+printf "${BOLD}🎉 Installation completed successfully!${NC}\n"
 echo
-echo -e "${BOLD}📋 Next steps:${NC}"
+printf "${BOLD}📋 Next steps:${NC}\n"
 echo "1. Edit config.yaml with your BigQuery project details"
 echo "2. Authenticate with Google Cloud:"
-echo "   ${BLUE}gcloud auth application-default login${NC}"
+printf "   ${BLUE}gcloud auth application-default login${NC}\n"
 echo "3. Test your setup:"
-echo "   ${BLUE}uv run dbome --dry-run${NC}"
+printf "   ${BLUE}uv run dbome --dry-run${NC}\n"
 echo "4. Deploy your views:"
-echo "   ${BLUE}uv run dbome${NC}"
+printf "   ${BLUE}uv run dbome${NC}\n"
 echo
-echo -e "${BOLD}💡 Useful aliases to add to your shell profile:${NC}"
-echo "   ${BLUE}alias dbome='uv run dbome'${NC}"
-echo "   ${BLUE}alias bq-deploy='uv run dbome'${NC}"
-echo "   ${BLUE}alias bq-dry='uv run dbome --dry-run'${NC}"
+printf "${BOLD}💡 Useful aliases to add to your shell profile:${NC}\n"
+printf "   ${BLUE}alias dbome='uv run dbome'${NC}\n"
+printf "   ${BLUE}alias bq-deploy='uv run dbome'${NC}\n"
+printf "   ${BLUE}alias bq-dry='uv run dbome --dry-run'${NC}\n"
 echo
-echo -e "${BOLD}📚 Documentation:${NC}"
+printf "${BOLD}📚 Documentation:${NC}\n"
 echo "   • Project README: ./README.md"
 echo "   • Example SQL files: ./sql/views/"
 echo "   • Configuration: ./config.yaml"
 echo
-echo -e "${BOLD}🚀 Welcome to dbome - dbt at home!${NC}"
+printf "${BOLD}🚀 Welcome to dbome - dbt at home!${NC}\n"
 
 # Show project structure
 if command -v tree &> /dev/null; then
     echo
-    echo -e "${BOLD}📁 Project structure:${NC}"
-    tree -a -I '.git|__pycache__|*.pyc|.uv' -L 3
+    printf "${BOLD}📁 Project structure:${NC}\n"
+    tree -a -I '.git|__pycache__|*.pyc|.uv|.venv' -L 3
 fi 
