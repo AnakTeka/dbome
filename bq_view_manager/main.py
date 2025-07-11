@@ -106,9 +106,9 @@ class BigQueryViewManager:
             with open(file_path, 'r') as f:
                 raw_content = f.read()
             
-            # Compile template (handles ref() functions)
+            # Compile template (handles ref() functions and auto-wrapping)
             try:
-                compiled_content = self.template_compiler.compile_sql(raw_content, file_path.stem)
+                compiled_content = self.template_compiler.compile_sql(raw_content, file_path.stem, file_path, auto_wrap=True)
             except Exception as e:
                 console.print(f"[red]Template compilation error in {file_path}: {e}[/red]")
                 return None
@@ -233,9 +233,11 @@ class BigQueryViewManager:
                 # Check if this is a template file (contains {{ }})
                 has_template_syntax = '{{' in raw_content and '}}' in raw_content
                 
-                if has_template_syntax:
-                    # For template files, try to extract view name from CREATE statement
-                    # Look for CREATE OR REPLACE VIEW pattern
+                # Check if SQL contains CREATE OR REPLACE VIEW
+                has_create_view = re.search(r'CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+', raw_content, re.IGNORECASE)
+                
+                if has_create_view:
+                    # SQL already has CREATE OR REPLACE VIEW - extract view name from it
                     create_match = re.search(r'CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+([`\'"]?[^`\'"]+[`\'"]?)', raw_content, re.IGNORECASE)
                     if create_match:
                         full_name = create_match.group(1).strip('`\'"')
@@ -253,28 +255,23 @@ class BigQueryViewManager:
                             'dataset_id': None,  # Will be extracted during compilation
                         }
                 else:
-                    # Parse without compilation to get view info
-                    try:
-                        parsed = parse_one(raw_content, dialect="bigquery")
-                        if parsed and isinstance(parsed, exp.Create) and parsed.kind == "VIEW":
-                            if parsed.this and isinstance(parsed.this, exp.Table):
-                                table_info = parsed.this
-                                view_name = table_info.name if table_info.name else "unknown"
-                                full_name = table_info.sql(dialect="bigquery")
-                                
-                                # Register view for ref() resolution
-                                self.template_compiler.register_view(view_name, full_name)
-                                
-                                all_sql_info[view_name] = {
-                                    'path': file_path,
-                                    'raw_content': raw_content,
-                                    'view_name': view_name,
-                                    'full_name': full_name,
-                                    'project_id': table_info.catalog if table_info.catalog else None,
-                                    'dataset_id': table_info.db if table_info.db else None,
-                                }
-                    except Exception as e:
-                        console.print(f"[yellow]Warning: Could not pre-parse {file_path}: {e}[/yellow]")
+                    # Plain SELECT statement - use filename as view name
+                    view_name = file_path.stem
+                    project_id = self.config['bigquery']['project_id']
+                    dataset_id = self.config['bigquery']['dataset_id']
+                    full_name = f"`{project_id}.{dataset_id}.{view_name}`"
+                    
+                    # Register view for ref() resolution
+                    self.template_compiler.register_view(view_name, full_name)
+                    
+                    all_sql_info[view_name] = {
+                        'path': file_path,
+                        'raw_content': raw_content,
+                        'view_name': view_name,
+                        'full_name': full_name,
+                        'project_id': project_id,
+                        'dataset_id': dataset_id,
+                    }
                     
             except Exception as e:
                 console.print(f"[red]Error reading {file_path}: {e}[/red]")
@@ -345,6 +342,7 @@ Examples:
   bq-view-deploy --files view1.sql   Deploy specific files only
   bq-view-deploy --validate-refs     Validate all ref() references
   bq-view-deploy --show-deps         Show dependency graph
+  bq-view-deploy --compile-only      Compile templates to compiled/ directory
   bq-view-deploy --config prod.yaml  Use different config file
 
 For more help, visit: https://github.com/your-repo/bq-view-manager
@@ -383,6 +381,11 @@ For more help, visit: https://github.com/your-repo/bq-view-manager
         action="store_true", 
         help="Show dependency graph and deployment order"
     )
+    parser.add_argument(
+        "--compile-only", 
+        action="store_true", 
+        help="Compile SQL templates without deploying (saves to compiled directory)"
+    )
     
     args = parser.parse_args()
     
@@ -407,8 +410,8 @@ For more help, visit: https://github.com/your-repo/bq-view-manager
     try:
         manager = BigQueryViewManager(config_path)
         
-        # Handle validation and dependency options
-        if args.validate_refs or args.show_deps:
+        # Handle validation, dependency, and compilation options
+        if args.validate_refs or args.show_deps or args.compile_only:
             sql_files = manager.find_sql_files(args.files)
             if not sql_files:
                 console.print("[yellow]No SQL files found to analyze[/yellow]")
@@ -438,6 +441,27 @@ For more help, visit: https://github.com/your-repo/bq-view-manager
                 console.print(f"\n[bold green]Deployment Order:[/bold green]")
                 for i, view in enumerate(order, 1):
                     console.print(f"  {i}. {view}")
+            
+            if args.compile_only:
+                console.print(f"\n[bold blue]📄 Compiling SQL Templates[/bold blue]\n")
+                
+                # Temporarily enable compiled output
+                original_save_compiled = manager.config.get('deployment', {}).get('save_compiled', False)
+                manager.config.setdefault('deployment', {})['save_compiled'] = True
+                
+                try:
+                    compiled_sqls = manager.template_compiler.compile_and_save_all(sql_files)
+                    
+                    if compiled_sqls:
+                        console.print(f"[green]✅ Compiled {len(compiled_sqls)} SQL files[/green]")
+                        compiled_dir = manager.config.get('sql', {}).get('compiled_directory', 'compiled/views')
+                        console.print(f"[dim]  Output directory: {compiled_dir}[/dim]")
+                    else:
+                        console.print("[yellow]No SQL files were compiled[/yellow]")
+                        
+                finally:
+                    # Restore original setting
+                    manager.config['deployment']['save_compiled'] = original_save_compiled
             
             return
         
