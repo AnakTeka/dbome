@@ -11,6 +11,9 @@ A Git-based repository that automatically deploys BigQuery views using native `C
 - **Git-based SQL Management**: Store and version control your SQL view files
 - **Automatic Deployment**: Post-commit hooks automatically update BigQuery views
 - **Native SQL Syntax**: Uses `CREATE OR REPLACE VIEW` statements directly
+- **dbt-like ref() Syntax**: Reference other views using `{{ ref('view_name') }}` syntax
+- **Dependency Resolution**: Automatically deploys views in the correct order based on dependencies
+- **Template Compilation**: Jinja2-powered template engine for dynamic SQL generation
 - **Configuration-driven**: YAML configuration for flexible deployment settings
 - **Dry Run Mode**: Test deployments without making changes
 - **Rich CLI Output**: Beautiful console output with progress indicators
@@ -102,25 +105,56 @@ The post-commit hook is now active and will deploy views automatically!
 
 1. Create SQL files in the `sql/views/` directory using `CREATE OR REPLACE VIEW` syntax:
 
+**Basic view (no dependencies):**
+```sql
+-- sql/views/user_actions.sql
+CREATE OR REPLACE VIEW `your-project.your_dataset.user_actions` AS
+SELECT 
+    user_id,
+    action_type,
+    action_timestamp,
+    session_id
+FROM `your-project.raw_data.events`
+WHERE action_type IS NOT NULL;
+```
+
+**View with dependencies using ref() syntax:**
 ```sql
 -- sql/views/user_metrics.sql
 CREATE OR REPLACE VIEW `your-project.your_dataset.user_metrics` AS
 SELECT 
     user_id,
     COUNT(*) as total_actions,
-    MAX(action_date) as last_action_date
-FROM `your-project.your_dataset.user_actions`
+    MAX(action_timestamp) as last_action_date,
+    COUNT(DISTINCT session_id) as total_sessions
+FROM {{ ref('user_actions') }}
 GROUP BY user_id;
+```
+
+**Multi-level dependency chain:**
+```sql
+-- sql/views/user_summary.sql
+CREATE OR REPLACE VIEW `your-project.your_dataset.user_summary` AS
+SELECT 
+    CASE 
+        WHEN total_actions >= 100 THEN 'High Activity'
+        WHEN total_actions >= 20 THEN 'Medium Activity'
+        ELSE 'Low Activity'
+    END as activity_level,
+    COUNT(*) as user_count,
+    AVG(total_actions) as avg_actions_per_user
+FROM {{ ref('user_metrics') }}
+GROUP BY activity_level;
 ```
 
 2. Commit your changes:
 
 ```bash
-git add sql/views/user_metrics.sql
-git commit -m "Add user metrics view"
+git add sql/views/
+git commit -m "Add user views with dependencies"
 ```
 
-3. The post-commit hook automatically deploys the view to BigQuery!
+3. The post-commit hook automatically deploys views in the correct order!
 
 ### Manual Deployment
 
@@ -178,6 +212,74 @@ deployment:
 - `GOOGLE_APPLICATION_CREDENTIALS`: Path to service account key
 - `GOOGLE_CLOUD_PROJECT`: Default GCP project ID
 
+## 🔗 dbt-like ref() Functionality
+
+### Using ref() Syntax
+
+Reference other views using Jinja2 template syntax:
+
+```sql
+-- Instead of hardcoding table references:
+SELECT * FROM `project.dataset.other_view`
+
+-- Use ref() for dynamic resolution:
+SELECT * FROM {{ ref('other_view') }}
+```
+
+### Benefits
+
+- **Automatic dependency resolution**: Views are deployed in the correct order
+- **Environment flexibility**: References adapt to different projects/datasets
+- **Maintainability**: Change table names in one place (the CREATE statement)
+- **Validation**: Detect broken references before deployment
+
+### Reference Resolution
+
+The `ref()` function resolves view names using this logic:
+
+1. **Exact match**: If the referenced view exists in your views directory
+2. **Config defaults**: Uses `project_id` and `dataset_id` from `config.yaml`
+3. **Cross-project**: Explicitly specify project: `{{ ref('view_name', project='other-project') }}`
+
+### Dependency Validation
+
+```bash
+# Validate all references are correct
+bq-view-deploy --validate-refs
+
+# Show dependency graph and deployment order
+bq-view-deploy --show-deps
+```
+
+### Example Dependency Chain
+
+```sql
+-- Base view (no dependencies)
+-- sql/views/events.sql
+CREATE OR REPLACE VIEW `project.dataset.events` AS
+SELECT * FROM `project.raw.events_table`;
+
+-- Depends on events
+-- sql/views/user_sessions.sql  
+CREATE OR REPLACE VIEW `project.dataset.user_sessions` AS
+SELECT 
+    user_id,
+    COUNT(*) as session_count
+FROM {{ ref('events') }}
+GROUP BY user_id;
+
+-- Depends on user_sessions
+-- sql/views/user_summary.sql
+CREATE OR REPLACE VIEW `project.dataset.user_summary` AS
+SELECT 
+    CASE WHEN session_count >= 10 THEN 'Active' ELSE 'Inactive' END as user_type,
+    COUNT(*) as user_count
+FROM {{ ref('user_sessions') }}
+GROUP BY user_type;
+```
+
+**Deployment Order**: `events` → `user_sessions` → `user_summary`
+
 ## 🔧 Commands
 
 ### CLI Commands
@@ -186,6 +288,8 @@ deployment:
 | `bq-view-deploy` | Deploy all SQL views |
 | `bq-view-deploy --dry-run` | Preview deployments without executing |
 | `bq-view-deploy --files FILE1 FILE2` | Deploy specific files only |
+| `bq-view-deploy --validate-refs` | Validate all ref() references |
+| `bq-view-deploy --show-deps` | Show dependency graph and deployment order |
 | `bq-view-deploy --version` | Show version information |
 | `bq-view-deploy --config FILE` | Use custom config file |
 | `bq-view-deploy --help` | Show detailed help with examples |

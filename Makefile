@@ -1,4 +1,4 @@
-.PHONY: help deploy dry-run check setup install clean dev-install
+.PHONY: help deploy dry-run check setup install clean dev-install test test-unit test-integration test-coverage test-verbose
 
 # Default target
 help:
@@ -14,6 +14,14 @@ help:
 	@echo "  make deploy      Deploy all views to BigQuery"
 	@echo "  make dry-run     Show what would be deployed (no changes)"
 	@echo "  make check       Validate SQL syntax without deploying"
+	@echo ""
+	@echo "🧪 Testing:"
+	@echo "  make test        Run all tests"
+	@echo "  make test-unit   Run unit tests only"
+	@echo "  make test-integration  Run integration tests only"
+	@echo "  make test-template     Run template compiler tests"
+	@echo "  make test-coverage     Run tests with coverage report"
+	@echo "  make test-verbose      Run tests with verbose output"
 	@echo ""
 	@echo "🧹 Maintenance:"
 	@echo "  make clean       Remove build artifacts and cache"
@@ -69,4 +77,38 @@ deploy-confirm:
 # Deploy specific files (usage: make deploy-files FILES="file1.sql file2.sql")
 deploy-files:
 	@echo "🚀 Deploying specific files: $(FILES)"
-	@bq-view-deploy --files $(FILES) 
+	@bq-view-deploy --files $(FILES)
+
+# Testing targets
+test:
+	@echo "🧪 Running all tests..."
+	@uv run pytest
+
+test-unit:
+	@echo "🧪 Running unit tests..."
+	@uv run pytest -m unit
+
+test-integration:
+	@echo "🧪 Running integration tests..."
+	@uv run pytest -m integration
+
+test-coverage:
+	@echo "🧪 Running tests with coverage..."
+	@uv run pytest --cov=bq_view_manager --cov-report=html --cov-report=term
+
+test-verbose:
+	@echo "🧪 Running tests with verbose output..."
+	@uv run pytest -v
+
+test-watch:
+	@echo "🧪 Running tests in watch mode..."
+	@uv run pytest --watch
+
+test-template:
+	@echo "🧪 Running template compiler tests..."
+	@uv run pytest tests/test_template_compiler.py -v
+
+# Test utilities
+test-install:
+	@echo "📦 Installing test dependencies..."
+	@uv sync --extra test 

@@ -20,6 +20,7 @@ from sqlglot import exp, parse_one
 from sqlglot.errors import ParseError
 
 from . import __version__
+from .template_compiler import SQLTemplateCompiler
 
 console = Console()
 
@@ -29,6 +30,7 @@ class BigQueryViewManager:
     def __init__(self, config_path: str = "config.yaml"):
         self.config = self._load_config(config_path)
         self.client = self._initialize_client() if not self.config['deployment']['dry_run'] else None
+        self.template_compiler = SQLTemplateCompiler(self.config)
         
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from YAML file"""
@@ -102,11 +104,18 @@ class BigQueryViewManager:
         """Parse SQL file using SQLGlot and extract view information"""
         try:
             with open(file_path, 'r') as f:
-                content = f.read()
+                raw_content = f.read()
+            
+            # Compile template (handles ref() functions)
+            try:
+                compiled_content = self.template_compiler.compile_sql(raw_content, file_path.stem)
+            except Exception as e:
+                console.print(f"[red]Template compilation error in {file_path}: {e}[/red]")
+                return None
             
             # Parse with SQLGlot BigQuery dialect
             try:
-                parsed = parse_one(content, dialect="bigquery")
+                parsed = parse_one(compiled_content, dialect="bigquery")
             except ParseError as e:
                 console.print(f"[red]SQLGlot parse error in {file_path}: {e}[/red]")
                 return None
@@ -135,13 +144,17 @@ class BigQueryViewManager:
             project_id = table.catalog if table.catalog else None
             dataset_id = table.db if table.db else None
             
+            # Register view in template compiler
+            self.template_compiler.register_view(view_name, full_name)
+            
             return {
                 'name': view_name,
                 'full_name': full_name,
                 'project_id': project_id,
                 'dataset_id': dataset_id,
                 'path': file_path,
-                'content': content.strip(),
+                'raw_content': raw_content.strip(),
+                'compiled_content': compiled_content.strip(),
                 'parsed_ast': parsed
             }
             
@@ -163,8 +176,8 @@ class BigQueryViewManager:
                     console.print(f"[dim]SQL:[/dim]\n{formatted_sql}")
                 return True
             
-            # Execute the SQL directly
-            job = self.client.query(sql_info['content'])
+            # Execute the SQL directly (use compiled content)
+            job = self.client.query(sql_info['compiled_content'])
             job.result()  # Wait for the job to complete
             
             console.print(f"[green]✓[/green] Created/updated view: {sql_info['name']}")
@@ -190,6 +203,17 @@ class BigQueryViewManager:
                 console.print("[yellow]No SQL view files found to deploy[/yellow]")
             return
         
+        # Get deployment order based on dependencies
+        deployment_order = self.template_compiler.get_deployment_order(sql_files)
+        
+        # Validate all references
+        validation_errors = self.template_compiler.validate_references(sql_files)
+        if validation_errors:
+            console.print("[red]Template validation errors found:[/red]")
+            for error in validation_errors:
+                console.print(f"  ❌ {error}")
+            return
+        
         # Create a table to show files found
         table = Table(title="SQL View Files to Process")
         table.add_column("File", style="cyan")
@@ -197,24 +221,86 @@ class BigQueryViewManager:
         table.add_column("Full Name", style="magenta")
         table.add_column("Status", style="yellow")
         
-        processed_files = []
+        # First pass: Parse all files and register views (without compilation)
+        file_map = {f.stem: f for f in sql_files}
+        all_sql_info = {}
+        
         for file_path in sql_files:
-            sql_info = self.parse_sql_file(file_path)
-            if sql_info:
-                processed_files.append(sql_info)
-                table.add_row(
-                    str(file_path), 
-                    sql_info['name'], 
-                    sql_info['full_name'],
-                    "✓ Ready"
-                )
-            else:
-                table.add_row(
-                    str(file_path), 
-                    "N/A", 
-                    "N/A",
-                    "❌ Parse Error"
-                )
+            try:
+                with open(file_path, 'r') as f:
+                    raw_content = f.read()
+                
+                # Check if this is a template file (contains {{ }})
+                has_template_syntax = '{{' in raw_content and '}}' in raw_content
+                
+                if has_template_syntax:
+                    # For template files, try to extract view name from CREATE statement
+                    # Look for CREATE OR REPLACE VIEW pattern
+                    create_match = re.search(r'CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+([`\'"]?[^`\'"]+[`\'"]?)', raw_content, re.IGNORECASE)
+                    if create_match:
+                        full_name = create_match.group(1).strip('`\'"')
+                        view_name = file_path.stem  # Use filename as view name
+                        
+                        # Register view for ref() resolution (use full name from CREATE statement)
+                        self.template_compiler.register_view(view_name, create_match.group(1))
+                        
+                        all_sql_info[view_name] = {
+                            'path': file_path,
+                            'raw_content': raw_content,
+                            'view_name': view_name,
+                            'full_name': create_match.group(1),
+                            'project_id': None,  # Will be extracted during compilation
+                            'dataset_id': None,  # Will be extracted during compilation
+                        }
+                else:
+                    # Parse without compilation to get view info
+                    try:
+                        parsed = parse_one(raw_content, dialect="bigquery")
+                        if parsed and isinstance(parsed, exp.Create) and parsed.kind == "VIEW":
+                            if parsed.this and isinstance(parsed.this, exp.Table):
+                                table_info = parsed.this
+                                view_name = table_info.name if table_info.name else "unknown"
+                                full_name = table_info.sql(dialect="bigquery")
+                                
+                                # Register view for ref() resolution
+                                self.template_compiler.register_view(view_name, full_name)
+                                
+                                all_sql_info[view_name] = {
+                                    'path': file_path,
+                                    'raw_content': raw_content,
+                                    'view_name': view_name,
+                                    'full_name': full_name,
+                                    'project_id': table_info.catalog if table_info.catalog else None,
+                                    'dataset_id': table_info.db if table_info.db else None,
+                                }
+                    except Exception as e:
+                        console.print(f"[yellow]Warning: Could not pre-parse {file_path}: {e}[/yellow]")
+                    
+            except Exception as e:
+                console.print(f"[red]Error reading {file_path}: {e}[/red]")
+        
+        # Second pass: Process files in dependency order with compilation
+        processed_files = []
+        
+        for view_name in deployment_order:
+            if view_name in all_sql_info:
+                info = all_sql_info[view_name]
+                sql_info = self.parse_sql_file(info['path'])
+                if sql_info:
+                    processed_files.append(sql_info)
+                    table.add_row(
+                        str(info['path']), 
+                        sql_info['name'], 
+                        sql_info['full_name'],
+                        "✓ Ready"
+                    )
+                else:
+                    table.add_row(
+                        str(info['path']), 
+                        "N/A", 
+                        "N/A",
+                        "❌ Parse Error"
+                    )
         
         console.print(table)
         console.print()
@@ -257,6 +343,8 @@ Examples:
   bq-view-deploy                     Deploy all views
   bq-view-deploy --dry-run           Preview what would be deployed
   bq-view-deploy --files view1.sql   Deploy specific files only
+  bq-view-deploy --validate-refs     Validate all ref() references
+  bq-view-deploy --show-deps         Show dependency graph
   bq-view-deploy --config prod.yaml  Use different config file
 
 For more help, visit: https://github.com/your-repo/bq-view-manager
@@ -285,6 +373,16 @@ For more help, visit: https://github.com/your-repo/bq-view-manager
         help="Specific SQL files to process (default: all files in views directory)",
         metavar="FILE"
     )
+    parser.add_argument(
+        "--validate-refs", 
+        action="store_true", 
+        help="Validate all ref() references and exit"
+    )
+    parser.add_argument(
+        "--show-deps", 
+        action="store_true", 
+        help="Show dependency graph and deployment order"
+    )
     
     args = parser.parse_args()
     
@@ -308,6 +406,42 @@ For more help, visit: https://github.com/your-repo/bq-view-manager
     
     try:
         manager = BigQueryViewManager(config_path)
+        
+        # Handle validation and dependency options
+        if args.validate_refs or args.show_deps:
+            sql_files = manager.find_sql_files(args.files)
+            if not sql_files:
+                console.print("[yellow]No SQL files found to analyze[/yellow]")
+                return
+            
+            if args.validate_refs:
+                errors = manager.template_compiler.validate_references(sql_files)
+                if errors:
+                    console.print("[red]Validation errors found:[/red]")
+                    for error in errors:
+                        console.print(f"  ❌ {error}")
+                    sys.exit(1)
+                else:
+                    console.print("[green]✅ All references are valid[/green]")
+            
+            if args.show_deps:
+                graph = manager.template_compiler.build_dependency_graph(sql_files)
+                order = manager.template_compiler.get_deployment_order(sql_files)
+                
+                console.print("[bold blue]Dependency Graph:[/bold blue]")
+                for view, deps in graph.items():
+                    if deps:
+                        console.print(f"  {view} → {', '.join(deps)}")
+                    else:
+                        console.print(f"  {view} (no dependencies)")
+                
+                console.print(f"\n[bold green]Deployment Order:[/bold green]")
+                for i, view in enumerate(order, 1):
+                    console.print(f"  {i}. {view}")
+            
+            return
+        
+        # Normal deployment
         manager.deploy_views(args.files)
     finally:
         # Clean up temporary config file if created
