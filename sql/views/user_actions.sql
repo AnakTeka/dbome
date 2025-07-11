@@ -1,4 +1,4 @@
--- Base view: user_actions
+-- Base view: user_actions (MODIFIED)
 -- This view will be referenced by other views using ref() syntax
 
 CREATE OR REPLACE VIEW `your-project.your_dataset.user_actions` AS
@@ -8,7 +8,8 @@ SELECT
     action_timestamp,
     session_id,
     page_url,
-    user_agent
+    user_agent,
+    DATE(action_timestamp) as action_date  -- ADDED: new column
 FROM `your-project.raw_data.events`
 WHERE action_type IS NOT NULL
     AND user_id IS NOT NULL
