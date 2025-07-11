@@ -22,16 +22,13 @@ A dbt-like tool with simplified SQL syntax, dependency resolution, and git-based
 
 ### 🎯 One-Line Install (Recommended)
 
-The easiest way to get started - **perfect for data scientists** and quick setup:
+The easiest way to get started - **perfect for SageMaker users** and quick setup:
 
-> **💡 Why this approach?** Many data scientists work in environments like SageMaker, Colab, or other hosted notebooks where they need a quick, reliable way to set up tools without worrying about Python package management. This installer handles everything for you!
+> **💡 Why this approach?** Data scientists working in SageMaker, Colab, or other hosted environments need a quick, reliable way to set up tools without worrying about Python package management. This installer handles everything for you - just create a directory and run one command!
 
 ```bash
-# Install in current directory
+# Simply run this in the directory where you want your dbome project
 curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash
-
-# Or create a new project directory
-curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash -s -- --project-name my-analytics
 ```
 
 This will:
@@ -43,18 +40,33 @@ This will:
 
 **Perfect for SageMaker, Colab, or any Linux/macOS environment!**
 
+### 🚀 SageMaker Quick Start
+
+For your DS friend using SageMaker:
+
+1. **Open SageMaker terminal** 
+2. **Create directory**: `mkdir my-bq-project && cd my-bq-project`
+3. **Install dbome**: `curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash`
+4. **Configure BigQuery**: Edit `config.yaml` with your project details
+5. **Deploy views**: `uv run dbome --dry-run` (test) then `uv run dbome` (deploy)
+
+Zero Python environment management needed! 🎉
+
 ### 📦 Manual Installation
 
 If you prefer to install manually:
 
 ```bash
 # Option 1: Install via pip
+mkdir my-dwh-project
+cd my-dwh-project
 pip install dbome
-dbome init my-dwh-project
+dbome init
 
 # Option 2: Install via uv (recommended for Python projects)
-uv init my-dwh-project
+mkdir my-dwh-project
 cd my-dwh-project
+uv init
 uv add dbome
 uv run dbome init
 ```
@@ -73,12 +85,15 @@ dbome --dry-run         # if using pip
 
 ## 📝 Quick Start
 
-### 1. One-Line Install (Perfect for Data Scientists! 🔬)
+### 1. One-Line Install (Perfect for SageMaker! 🔬)
 ```bash
-# Create a new analytics project
-curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash -s -- --project-name analytics-views
-cd analytics-views
+# In SageMaker terminal or any Linux environment:
+mkdir my-analytics-project
+cd my-analytics-project
+curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash
 ```
+
+**That's it!** ✨ Everything is set up and ready to go.
 
 ### 2. Configure BigQuery
 Edit `config.yaml`:
@@ -173,7 +188,7 @@ git commit -m "Update analytics views"
 
 | Command | Description |
 |---------|-------------|
-| `dbome init PROJECT` | Initialize a new project |
+| `dbome init` | Initialize a new project in current directory |
 | `dbome --help` | Show help |
 
 ### Project Commands (inside your project)
@@ -203,7 +218,7 @@ git commit -m "Update analytics views"
 
 ## 📁 Project Structure
 
-When you run `dbome init my-project`, you get:
+When you run `dbome init`, you get:
 
 ```
 my-project/

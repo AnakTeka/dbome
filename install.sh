@@ -14,8 +14,6 @@ NC='\033[0m' # No Color
 
 # Configuration
 PACKAGE_NAME="dbome"
-PROJECT_NAME=""
-INSTALL_DIR=""
 
 # Helper functions
 log() {
@@ -38,34 +36,22 @@ error() {
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --project-name)
-            PROJECT_NAME="$2"
-            shift 2
-            ;;
-        --dir)
-            INSTALL_DIR="$2"
-            shift 2
-            ;;
         --help)
             cat << EOF
 dbome (dbt at home) - One-line installer 🏠
 
 Usage: curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash
 
-Options:
-  --project-name NAME    Create a new project directory with NAME
-  --dir PATH            Install in specific directory (default: current directory)
-  --help                Show this help message
+This installer will set up dbome in your current directory.
 
-Examples:
-  # Install in current directory
+What it does:
+  • Installs uv (if not already installed)
+  • Creates a Python project with dbome as dependency
+  • Initializes dbome project with templates
+  • Sets up git repository with auto-deployment hooks
+
+Example:
   curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash
-
-  # Create new project directory
-  curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash -s -- --project-name my-analytics
-
-  # Install in specific directory
-  curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash -s -- --dir /path/to/project
 EOF
             exit 0
             ;;
@@ -86,27 +72,10 @@ cat << 'EOF'
 
 EOF
 
-# Determine installation directory
-if [ -n "$INSTALL_DIR" ]; then
-    INSTALL_DIR=$(realpath "$INSTALL_DIR")
-    log "Installing in specified directory: $INSTALL_DIR"
-elif [ -n "$PROJECT_NAME" ]; then
-    INSTALL_DIR="$(pwd)/$PROJECT_NAME"
-    log "Creating new project: $PROJECT_NAME"
-else
-    INSTALL_DIR="$(pwd)"
-    log "Installing in current directory: $INSTALL_DIR"
-fi
-
-# Create project directory if needed
-if [ -n "$PROJECT_NAME" ]; then
-    if [ -d "$PROJECT_NAME" ]; then
-        error "Directory '$PROJECT_NAME' already exists! Please choose a different name or remove the existing directory."
-    fi
-    mkdir -p "$PROJECT_NAME"
-    cd "$PROJECT_NAME"
-    success "Created project directory: $PROJECT_NAME"
-fi
+# Install in current directory
+INSTALL_DIR="$(pwd)"
+PROJECT_NAME=$(basename "$INSTALL_DIR")
+log "Installing in current directory: $INSTALL_DIR"
 
 # Check if directory already has a Python project
 if [ -f "pyproject.toml" ] || [ -f "config.yaml" ] || [ -f "config.yaml.template" ]; then
