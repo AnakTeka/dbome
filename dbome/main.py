@@ -393,8 +393,27 @@ class BigQueryViewManager:
                 success_count += 1
         
         result_text = "validated" if self.config['deployment']['dry_run'] else "deployed"
-        console.print(f"\n[bold green]✅ Processing completed![/bold green]")
-        console.print(f"Successfully {result_text} {success_count}/{len(processed_files)} views")
+        total_files = len(processed_files)
+        
+        # Status-aware completion messages based on success rate
+        if success_count == total_files:
+            # All succeeded
+            console.print(f"\n[bold green]✅ Processing completed successfully![/bold green]")
+            console.print(f"[green]Successfully {result_text} all {total_files} views[/green]")
+        elif success_count > 0:
+            # Partial success
+            console.print(f"\n[bold yellow]⚠️  Processing completed with errors[/bold yellow]")
+            console.print(f"[yellow]Successfully {result_text} {success_count}/{total_files} views[/yellow]")
+            console.print(f"[red]{total_files - success_count} views failed[/red]")
+        else:
+            # All failed
+            console.print(f"\n[bold red]❌ Processing failed[/bold red]")
+            console.print(f"[red]Failed to {result_text.rstrip('d')} any views ({success_count}/{total_files})[/red]")
+            console.print(f"[dim]Check the error messages above for details[/dim]")
+            
+            # Exit with error code when all views fail (unless dry run)
+            if not self.config['deployment']['dry_run']:
+                sys.exit(1)
 
 
 def init_project(project_name: Optional[str] = None) -> None:
