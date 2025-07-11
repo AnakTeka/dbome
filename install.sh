@@ -1,6 +1,6 @@
 #!/bin/bash
 # dbome (dbt at home) - One-line installer 🏠
-# Usage: curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/AnakTeka/dbome/main/install.sh | bash
 
 set -e  # Exit on error
 
@@ -49,7 +49,7 @@ while [[ $# -gt 0 ]]; do
             cat << EOF
 dbome (dbt at home) - One-line installer 🏠
 
-Usage: curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash
+Usage: curl -sSL https://raw.githubusercontent.com/AnakTeka/dbome/main/install.sh | bash
 
 This installer will set up dbome in your current directory.
 
@@ -60,7 +60,7 @@ What it does:
   • Sets up git repository with auto-deployment hooks
 
 Example:
-  curl -sSL https://raw.githubusercontent.com/your-repo/dbome/main/install.sh | bash
+  curl -sSL https://raw.githubusercontent.com/AnakTeka/dbome/main/install.sh | bash
 EOF
             exit 0
             ;;
@@ -126,7 +126,7 @@ name = "${PROJECT_NAME:-dbome-project}"
 version = "0.1.0"
 description = "BigQuery view management with dbome (dbt at home)"
 dependencies = [
-    "dbome>=0.1.0",
+    "dbome @ git+https://github.com/AnakTeka/dbome.git",
 ]
 requires-python = ">=3.8"
 
