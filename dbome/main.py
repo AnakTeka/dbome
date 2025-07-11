@@ -329,20 +329,34 @@ class BigQueryViewManager:
         console.print(f"Successfully {result_text} {success_count}/{len(processed_files)} views")
 
 
-def init_project(project_name: str) -> None:
+def init_project(project_name: Optional[str] = None) -> None:
     """Initialize a new dbome project"""
-    project_path = Path(project_name)
-    
-    if project_path.exists():
-        console.print(f"[red]Error: Directory '{project_name}' already exists![/red]")
-        sys.exit(1)
-    
-    console.print(f"[bold blue]🏠 Initializing dbome (dbt at home) project: {project_name}[/bold blue]\n")
-    
-    try:
+    if project_name:
+        # Initialize in a new directory
+        project_path = Path(project_name)
+        
+        if project_path.exists():
+            console.print(f"[red]Error: Directory '{project_name}' already exists![/red]")
+            sys.exit(1)
+        
+        console.print(f"[bold blue]🏠 Initializing dbome (dbt at home) project: {project_name}[/bold blue]\n")
+        
         # Create project directory
         project_path.mkdir(parents=True)
         console.print(f"[green]📁 Created directory: {project_path}[/green]")
+    else:
+        # Initialize in current directory
+        project_path = Path.cwd()
+        project_name = project_path.name
+        
+        # Check if current directory already has dbome files
+        if (project_path / "config.yaml").exists() or (project_path / "config.yaml.template").exists():
+            console.print(f"[red]Error: Current directory already appears to be a dbome project![/red]")
+            sys.exit(1)
+        
+        console.print(f"[bold blue]🏠 Initializing dbome (dbt at home) project in current directory: {project_name}[/bold blue]\n")
+    
+    try:
         
         # Get templates directory
         templates_dir = Path(__file__).parent / "templates"
@@ -396,7 +410,10 @@ def init_project(project_name: str) -> None:
             console.print(f"[green]📚 Created README.md[/green]")
         
         # Initialize git repository
-        os.chdir(project_path)
+        original_cwd = os.getcwd()
+        if project_path != Path.cwd():
+            os.chdir(project_path)
+        
         subprocess.run(["git", "init"], check=True, capture_output=True)
         console.print(f"[green]🔄 Initialized git repository[/green]")
         
@@ -415,11 +432,19 @@ def init_project(project_name: str) -> None:
         
         console.print(f"\n[bold green]🎉 Project '{project_name}' initialized successfully![/bold green]")
         console.print(f"\n[bold blue]Next steps:[/bold blue]")
-        console.print(f"1. [cyan]cd {project_name}[/cyan]")
-        console.print(f"2. [cyan]cp config.yaml.template config.yaml[/cyan]")
-        console.print(f"3. Edit config.yaml with your BigQuery project details")
-        console.print(f"4. [cyan]gcloud auth application-default login[/cyan]")
-        console.print(f"5. [cyan]dbome --dry-run[/cyan]")
+        
+        if project_path != Path.cwd():
+            console.print(f"1. [cyan]cd {project_name}[/cyan]")
+            console.print(f"2. [cyan]cp config.yaml.template config.yaml[/cyan]")
+            console.print(f"3. Edit config.yaml with your BigQuery project details")
+            console.print(f"4. [cyan]gcloud auth application-default login[/cyan]")
+            console.print(f"5. [cyan]dbome --dry-run[/cyan]")
+        else:
+            console.print(f"1. [cyan]cp config.yaml.template config.yaml[/cyan]")
+            console.print(f"2. Edit config.yaml with your BigQuery project details")
+            console.print(f"3. [cyan]gcloud auth application-default login[/cyan]")
+            console.print(f"4. [cyan]dbome --dry-run[/cyan]")
+        
         console.print(f"\n[dim]For more help, see README.md in your new project![/dim]")
         console.print(f"\n[bold blue]Welcome to dbome - dbt at home! 🏠[/bold blue]")
         
@@ -443,7 +468,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  dbome init my-project              Initialize a new project
+  dbome init                         Initialize project in current directory
+  dbome init my-project              Initialize a new project directory
   dbome                              Deploy all views
   dbome --dry-run                    Preview what would be deployed
   dbome --files view1.sql            Deploy specific files only
@@ -461,7 +487,7 @@ For more help, visit: https://github.com/your-repo/dbome
     
     # Init subcommand
     init_parser = subparsers.add_parser('init', help='Initialize a new dbome project')
-    init_parser.add_argument('project_name', help='Name of the project directory to create')
+    init_parser.add_argument('project_name', nargs='?', help='Name of the project directory to create (optional - defaults to current directory)')
     
     # If no subcommand provided, treat as deployment command (backwards compatibility)
     
