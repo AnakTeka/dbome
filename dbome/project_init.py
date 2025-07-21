@@ -25,15 +25,22 @@ def init_project(project_name: Optional[str] = None, quiet: bool = False) -> Non
     
     try:
         templates_dir = _get_templates_directory()
-        _copy_template_files(templates_dir, project_path)
+        
+        # Check if we're in an existing git repository
+        is_existing_git_repo = _is_git_repository(project_path)
+        
+        _copy_template_files(templates_dir, project_path, skip_git_hook=is_existing_git_repo)
         _copy_sql_examples(templates_dir, project_path)
         _create_readme(templates_dir, project_path, project_name or project_path.name)
-        _initialize_git_repository(project_path)
+        
+        # Initialize git repository if not already in one
+        if not is_existing_git_repo:
+            _initialize_git_repository(project_path)
         
         console.print(f"\n[bold green]🎉 Project '{project_name or project_path.name}' initialized successfully![/bold green]")
         
         if not quiet:
-            _show_auto_deployment_warning()
+            _show_auto_deployment_warning(skip_git_hook=is_existing_git_repo)
             _show_next_steps(project_path)
     
     except Exception as e:
@@ -95,19 +102,45 @@ def _get_templates_directory() -> Path:
     return templates_dir
 
 
-def _copy_template_files(templates_dir: Path, project_path: Path) -> None:
+def _is_git_repository(path: Path) -> bool:
+    """Check if the given path is inside a git repository.
+    
+    Args:
+        path: Path to check
+        
+    Returns:
+        True if inside a git repository, False otherwise
+    """
+    try:
+        original_cwd = os.getcwd()
+        os.chdir(path)
+        subprocess.run(["git", "rev-parse", "--git-dir"], check=True, capture_output=True)
+        os.chdir(original_cwd)
+        return True
+    except subprocess.CalledProcessError:
+        os.chdir(original_cwd)
+        return False
+    except Exception:
+        return False
+
+
+def _copy_template_files(templates_dir: Path, project_path: Path, skip_git_hook: bool = False) -> None:
     """Copy template files to the project directory.
     
     Args:
         templates_dir: Source templates directory
         project_path: Destination project directory
+        skip_git_hook: Whether to skip installing the git hook
     """
     files_to_copy = [
         ("config.yaml.template", "config.yaml.template"),
         ("setup.sh", "setup.sh"),
         (".gitignore.template", ".gitignore"),
-        ("post-commit", ".git/hooks/post-commit"),
     ]
+    
+    # Add git hook only if not skipping
+    if not skip_git_hook:
+        files_to_copy.append(("post-commit", ".git/hooks/post-commit"))
     
     for src_name, dst_name in files_to_copy:
         src_path = templates_dir / src_name
@@ -124,6 +157,13 @@ def _copy_template_files(templates_dir: Path, project_path: Path) -> None:
                 console.print(f"[green]🔗 Installed git hook: {dst_name}[/green]")
             else:
                 console.print(f"[green]📄 Created: {dst_name}[/green]")
+    
+    # If we skipped the git hook, inform the user
+    if skip_git_hook:
+        console.print(f"[yellow]⚠️  Existing git repository detected - skipping auto-deployment hook[/yellow]")
+        console.print(f"[yellow]    To enable auto-deployment, manually copy the post-commit hook:[/yellow]")
+        console.print(f"[dim]    cp {templates_dir}/post-commit .git/hooks/post-commit[/dim]")
+        console.print(f"[dim]    chmod +x .git/hooks/post-commit[/dim]")
 
 
 def _copy_sql_examples(templates_dir: Path, project_path: Path) -> None:
@@ -198,21 +238,39 @@ def _initialize_git_repository(project_path: Path) -> None:
         os.chdir(original_cwd)
 
 
-def _show_auto_deployment_warning() -> None:
-    """Show warning about auto-deployment feature."""
-    console.print(f"\n[bold red]⚡ IMPORTANT: Auto-Deployment Feature Enabled![/bold red]")
-    console.print("─" * 60)
-    console.print(f"[yellow]🔗 Git Hook Installed:[/yellow] [bold].git/hooks/post-commit[/bold]")
-    console.print()
-    console.print(f"[green]✅ WHAT THIS MEANS:[/green]")
-    console.print(f"   • When you commit SQL files, they will be [bold]automatically deployed[/bold] to BigQuery")
-    console.print(f"   • This happens [bold]immediately after each commit[/bold] - no manual deployment needed!")
-    console.print(f"   • Only changed SQL files in sql/views/ are deployed")
-    console.print()
-    console.print(f"[red]⚠️  SAFETY REMINDER:[/red]")
-    console.print(f"   • Always test with [bold]dry run[/bold] before committing: [cyan]uv run dbome run --dry[/cyan]")
-    console.print(f"   • Configure your BigQuery credentials in [bold]config.yaml[/bold] first")
-    console.print(f"   • The hook respects your [bold]dry_run[/bold] config setting")
+def _show_auto_deployment_warning(skip_git_hook: bool = False) -> None:
+    """Show warning about auto-deployment feature.
+    
+    Args:
+        skip_git_hook: Whether the git hook was skipped
+    """
+    if skip_git_hook:
+        # Show message for existing git repositories
+        console.print(f"\n[bold yellow]⚠️  Auto-Deployment Hook Not Installed[/bold yellow]")
+        console.print("─" * 60)
+        console.print(f"[yellow]Existing git repository detected - auto-deployment hook was skipped[/yellow]")
+        console.print()
+        console.print(f"[blue]💡 TO ENABLE AUTO-DEPLOYMENT:[/blue]")
+        console.print(f"   Copy the post-commit hook manually:")
+        console.print(f"   [cyan]cp templates/post-commit .git/hooks/post-commit[/cyan]")
+        console.print(f"   [cyan]chmod +x .git/hooks/post-commit[/cyan]")
+        console.print()
+        console.print(f"[dim]This will enable automatic deployment to BigQuery after each commit[/dim]")
+    else:
+        # Show message for new git repositories
+        console.print(f"\n[bold red]⚡ IMPORTANT: Auto-Deployment Feature Enabled![/bold red]")
+        console.print("─" * 60)
+        console.print(f"[yellow]🔗 Git Hook Installed:[/yellow] [bold].git/hooks/post-commit[/bold]")
+        console.print()
+        console.print(f"[green]✅ WHAT THIS MEANS:[/green]")
+        console.print(f"   • When you commit SQL files, they will be [bold]automatically deployed[/bold] to BigQuery")
+        console.print(f"   • This happens [bold]immediately after each commit[/bold] - no manual deployment needed!")
+        console.print(f"   • Only changed SQL files in sql/views/ are deployed")
+        console.print()
+        console.print(f"[red]⚠️  SAFETY REMINDER:[/red]")
+        console.print(f"   • Always test with [bold]dry run[/bold] before committing: [cyan]uv run dbome run --dry[/cyan]")
+        console.print(f"   • Configure your BigQuery credentials in [bold]config.yaml[/bold] first")
+        console.print(f"   • The hook respects your [bold]dry_run[/bold] config setting")
     console.print()
 
 
