@@ -1,6 +1,6 @@
 [project]
 name = "dbome"
-version = "0.2.0"
+version = "0.2.1"
 description = "dbome (dbt at home) - A dbt-like tool for BigQuery view management"
 authors = [
     {name = "Your Name", email = "your.email@example.com"},

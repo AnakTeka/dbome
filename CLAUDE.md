@@ -38,6 +38,18 @@ uv run pytest -v                  # Verbose output
 uv run pytest tests/test_template_compiler.py -v
 ```
 
+### Version Management
+
+The project uses a single source of truth for versioning:
+- Version is defined in `pyproject.toml`
+- `dbome/__init__.py` reads the version from package metadata when installed
+- Use `bump_version.py` to update versions:
+  ```bash
+  python bump_version.py         # Bump patch (0.3.0 -> 0.3.1)
+  python bump_version.py minor   # Bump minor (0.3.0 -> 0.4.0)
+  python bump_version.py major   # Bump major (0.3.0 -> 1.0.0)
+  ```
+
 ### Development Workflow
 ```bash
 # Validate changes before committing
