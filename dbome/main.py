@@ -11,6 +11,8 @@ import yaml
 import tempfile
 import shutil
 import subprocess
+import base64
+import json
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from google.cloud import bigquery
@@ -19,6 +21,10 @@ from sqlglot import expressions as exp
 from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
+
+# AWS imports for SSM parameter store
+import boto3
+from google.oauth2 import service_account
 
 from . import __version__
 from .template_compiler import SQLTemplateCompiler
@@ -46,17 +52,46 @@ class BigQueryViewManager:
             console.print(f"[red]Error parsing config file: {e}[/red]")
             sys.exit(1)
     
+    def _get_ssm_credentials(self, parameter_name: str) -> Dict[str, Any]:
+        """Retrieve Google service account credentials from AWS SSM Parameter Store"""
+        try:
+            console.print(f"[cyan]Retrieving credentials from AWS SSM parameter: {parameter_name}[/cyan]")
+            ssm = boto3.client('ssm')
+            response = ssm.get_parameter(Name=parameter_name, WithDecryption=True)
+            encoded_value = response['Parameter']['Value']
+            decoded_value = base64.b64decode(encoded_value).decode('ascii')
+            credentials_json = json.loads(decoded_value)
+            console.print("[green]✓[/green] Successfully retrieved credentials from AWS SSM")
+            return credentials_json
+        except Exception as e:
+            console.print(f"[red]Failed to retrieve credentials from AWS SSM parameter '{parameter_name}': {e}[/red]")
+            sys.exit(1)
+    
     def _initialize_client(self) -> bigquery.Client:
         """Initialize BigQuery client"""
         try:
-            # Set credentials if specified in config
-            if 'google_application_credentials' in self.config:
-                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = self.config['google_application_credentials']
-            
             project_id = self.config['bigquery']['project_id']
             location = self.config['bigquery'].get('location')
+            credentials = None
             
-            client = bigquery.Client(project=project_id, location=location)
+            # Check for AWS SSM credentials first
+            if 'aws_ssm_credentials_parameter' in self.config:
+                console.print("[cyan]Using AWS SSM Parameter Store for credentials[/cyan]")
+                credentials_json = self._get_ssm_credentials(self.config['aws_ssm_credentials_parameter'])
+                credentials = service_account.Credentials.from_service_account_info(credentials_json)
+                client = bigquery.Client(project=project_id, location=location, credentials=credentials)
+            
+            # Check for local service account file
+            elif 'google_application_credentials' in self.config:
+                console.print("[cyan]Using local service account file for credentials[/cyan]")
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = self.config['google_application_credentials']
+                client = bigquery.Client(project=project_id, location=location)
+            
+            # Use default application credentials
+            else:
+                console.print("[cyan]Using default application credentials[/cyan]")
+                client = bigquery.Client(project=project_id, location=location)
+            
             console.print(f"[green]✓[/green] Connected to BigQuery project: {project_id}")
             return client
             
@@ -553,23 +588,31 @@ def init_project(project_name: Optional[str] = None) -> None:
             console.print(f"2. [cyan]cp config.yaml.template config.yaml[/cyan]")
             console.print(f"3. Edit config.yaml with your BigQuery project details")
             console.print(f"4. Configure Google Cloud authentication (choose one):")
-            console.print(f"   [bold]Option A (Recommended):[/bold]")
+            console.print(f"   [bold]Option A (Recommended for local development):[/bold]")
             console.print(f"   [cyan]gcloud auth application-default login[/cyan]")
-            console.print(f"   [bold]Option B (Service Account):[/bold]")
+            console.print(f"   [bold]Option B (Service Account File):[/bold]")
             console.print(f"   • Download service account JSON key from Google Cloud Console")
             console.print(f"   • Update config.yaml with the path:")
             console.print(f"     [dim]google_application_credentials: \"/path/to/service-account-key.json\"[/dim]")
+            console.print(f"   [bold]Option C (AWS SSM Parameter Store):[/bold]")
+            console.print(f"   • Store your service account JSON in AWS SSM Parameter Store")
+            console.print(f"   • Update config.yaml with the parameter name:")
+            console.print(f"     [dim]aws_ssm_credentials_parameter: \"/your/ssm/parameter/name\"[/dim]")
             console.print(f"5. [cyan]dbome run --dry[/cyan]")
         else:
             console.print(f"1. [cyan]cp config.yaml.template config.yaml[/cyan]")
             console.print(f"2. Edit config.yaml with your BigQuery project details")
             console.print(f"3. Configure Google Cloud authentication (choose one):")
-            console.print(f"   [bold]Option A (Recommended):[/bold]")
+            console.print(f"   [bold]Option A (Recommended for local development):[/bold]")
             console.print(f"   [cyan]gcloud auth application-default login[/cyan]")
-            console.print(f"   [bold]Option B (Service Account):[/bold]")
+            console.print(f"   [bold]Option B (Service Account File):[/bold]")
             console.print(f"   • Download service account JSON key from Google Cloud Console")
             console.print(f"   • Update config.yaml with the path:")
             console.print(f"     [dim]google_application_credentials: \"/path/to/service-account-key.json\"[/dim]")
+            console.print(f"   [bold]Option C (AWS SSM Parameter Store):[/bold]")
+            console.print(f"   • Store your service account JSON in AWS SSM Parameter Store")
+            console.print(f"   • Update config.yaml with the parameter name:")
+            console.print(f"     [dim]aws_ssm_credentials_parameter: \"/your/ssm/parameter/name\"[/dim]")
             console.print(f"4. [cyan]dbome run --dry[/cyan]")
         
         console.print(f"\n[dim]For more help, see README.md in your new project![/dim]")

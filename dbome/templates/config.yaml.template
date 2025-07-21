@@ -8,8 +8,17 @@ bigquery:
   location: "US"  # or EU, etc.
   
 # Credentials (optional - will use default if not specified)
-# Uncomment and set path to your service account key if needed
+# Choose ONE of the following authentication methods:
+
+# Option A: Local service account key file
 # google_application_credentials: "/path/to/service-account-key.json"
+
+# Option B: AWS SSM Parameter Store (for environments like SageMaker)
+# Uncomment and set the SSM parameter name containing your service account JSON
+# aws_ssm_credentials_parameter: "/sagemaker/production/SVC_XXXXXXX"
+
+# Option C: Default Application Credentials (recommended for local development)
+# No configuration needed - use `gcloud auth application-default login`
 
 # SQL file processing - Views only
 sql:

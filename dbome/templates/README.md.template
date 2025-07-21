@@ -49,6 +49,13 @@ gcloud auth application-default login
    google_application_credentials: "/path/to/service-account-key.json"
    ```
 
+#### Option C: AWS SSM Parameter Store (for SageMaker/AWS environments)
+1. Store your service account JSON in AWS SSM Parameter Store (base64 encoded)
+2. Update `config.yaml`:
+   ```yaml
+   aws_ssm_credentials_parameter: "/sagemaker/production/XXXXXXXXXXXX"
+   ```
+
 ### 3. Install Dependencies (Optional)
 
 If you want to run the setup script:
