@@ -24,12 +24,12 @@ class TestCLI:
         )
         
         assert result.returncode == 0
-        assert 'BigQuery View Manager' in result.stdout
-        assert '--config' in result.stdout
-        assert '--dry-run' in result.stdout
-        assert '--files' in result.stdout
-        assert '--validate-refs' in result.stdout
-        assert '--show-deps' in result.stdout
+        assert 'BigQuery View Management' in result.stdout
+        assert 'init' in result.stdout
+        assert 'run' in result.stdout
+        assert 'compile' in result.stdout
+        assert 'deps' in result.stdout
+        assert 'validate' in result.stdout
     
     def test_version_command(self):
         """Test --version command"""
@@ -40,21 +40,32 @@ class TestCLI:
         )
         
         assert result.returncode == 0
-        assert 'BigQuery View Manager' in result.stdout
+        assert 'dbome (dbt at home)' in result.stdout
     
     def test_config_file_not_found(self):
         """Test behavior when config file doesn't exist"""
         result = subprocess.run(
-            [sys.executable, '-m', 'dbome.main', '--config', 'nonexistent.yaml'],
+            [sys.executable, '-m', 'dbome.main', 'run', '--config', 'nonexistent.yaml'],
             capture_output=True,
             text=True
         )
         
         assert result.returncode != 0
-        assert 'Error' in result.stderr or 'not found' in result.stderr
+        assert 'Configuration error' in result.stdout or 'not found' in result.stdout
     
-    def test_dry_run_mode(self, sample_config):
+    def test_dry_run_mode(self, sample_config, temp_dir):
         """Test dry run mode"""
+        # Create views directory
+        views_dir = temp_dir / "sql" / "views"
+        views_dir.mkdir(parents=True)
+        
+        # Create a test SQL file
+        sql_file = views_dir / "test_view.sql"
+        sql_file.write_text("SELECT 1 as col1")
+        
+        # Update config to point to temp directory
+        sample_config['sql']['views_directory'] = str(views_dir)
+        
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             yaml.dump(sample_config, f)
             config_file = f.name
@@ -62,8 +73,8 @@ class TestCLI:
         try:
             result = subprocess.run(
                 [sys.executable, '-m', 'dbome.main',
-                 '--config', config_file,
-                 '--dry-run'],
+                 'run', '--config', config_file,
+                 '--dry'],
                 capture_output=True,
                 text=True
             )
@@ -73,8 +84,19 @@ class TestCLI:
         finally:
             os.unlink(config_file)
     
-    def test_validate_refs_mode(self, sample_config):
+    def test_validate_refs_mode(self, sample_config, temp_dir):
         """Test reference validation mode"""
+        # Create views directory
+        views_dir = temp_dir / "sql" / "views"
+        views_dir.mkdir(parents=True)
+        
+        # Create a test SQL file
+        sql_file = views_dir / "test_view.sql"
+        sql_file.write_text("SELECT 1 as col1")
+        
+        # Update config to point to temp directory
+        sample_config['sql']['views_directory'] = str(views_dir)
+        
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             yaml.dump(sample_config, f)
             config_file = f.name
@@ -82,8 +104,7 @@ class TestCLI:
         try:
             result = subprocess.run(
                 [sys.executable, '-m', 'dbome.main',
-                 '--config', config_file,
-                 '--validate-refs'],
+                 'validate', '--config', config_file],
                 capture_output=True,
                 text=True
             )
@@ -93,8 +114,19 @@ class TestCLI:
         finally:
             os.unlink(config_file)
     
-    def test_show_deps_mode(self, sample_config):
+    def test_show_deps_mode(self, sample_config, temp_dir):
         """Test dependency graph display mode"""
+        # Create views directory
+        views_dir = temp_dir / "sql" / "views"
+        views_dir.mkdir(parents=True)
+        
+        # Create a test SQL file
+        sql_file = views_dir / "test_view.sql"
+        sql_file.write_text("SELECT 1 as col1")
+        
+        # Update config to point to temp directory
+        sample_config['sql']['views_directory'] = str(views_dir)
+        
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             yaml.dump(sample_config, f)
             config_file = f.name
@@ -102,8 +134,7 @@ class TestCLI:
         try:
             result = subprocess.run(
                 [sys.executable, '-m', 'dbome.main',
-                 '--config', config_file,
-                 '--show-deps'],
+                 'deps', '--config', config_file],
                 capture_output=True,
                 text=True
             )
@@ -133,8 +164,8 @@ class TestCLI:
         try:
             result = subprocess.run(
                 [sys.executable, '-m', 'dbome.main',
-                 '--config', config_file,
-                 '--files', str(sql_file1)],
+                 'run', '--config', config_file,
+                 str(sql_file1)],
                 capture_output=True,
                 text=True
             )
@@ -160,8 +191,7 @@ class TestCLI:
         try:
             result = subprocess.run(
                 [sys.executable, '-m', 'dbome.main',
-                 '--config', config_file,
-                 '--compile-only'],
+                 'compile', '--config', config_file],
                 capture_output=True,
                 text=True
             )
@@ -191,18 +221,29 @@ class TestCLI:
         try:
             result = subprocess.run(
                 [sys.executable, '-m', 'dbome.main',
-                 '--config', config_file],
+                 'run', '--config', config_file],
                 capture_output=True,
                 text=True
             )
             
             assert result.returncode != 0
-            assert 'error' in result.stderr.lower() or 'yaml' in result.stderr.lower()
+            assert 'Configuration error' in result.stdout or 'Error parsing config' in result.stdout
         finally:
             os.unlink(config_file)
     
-    def test_multiple_modes_combination(self, sample_config):
+    def test_multiple_modes_combination(self, sample_config, temp_dir):
         """Test combining multiple CLI modes"""
+        # Create views directory
+        views_dir = temp_dir / "sql" / "views"
+        views_dir.mkdir(parents=True)
+        
+        # Create a test SQL file
+        sql_file = views_dir / "test_view.sql"
+        sql_file.write_text("SELECT 1 as col1")
+        
+        # Update config to point to temp directory
+        sample_config['sql']['views_directory'] = str(views_dir)
+        
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             yaml.dump(sample_config, f)
             config_file = f.name
@@ -210,9 +251,8 @@ class TestCLI:
         try:
             result = subprocess.run(
                 [sys.executable, '-m', 'dbome.main',
-                 '--config', config_file,
-                 '--dry-run',
-                 '--validate-refs'],
+                 'run', '--config', config_file,
+                 '--dry'],
                 capture_output=True,
                 text=True
             )

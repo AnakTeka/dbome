@@ -9,10 +9,6 @@ import sys
 import glob
 import yaml
 import tempfile
-import shutil
-import subprocess
-import base64
-import json
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from google.cloud import bigquery
@@ -22,12 +18,17 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-# AWS imports for SSM parameter store
-import boto3
-from google.oauth2 import service_account
-
 from . import __version__
+from .auth import AuthManager
+from .exceptions import (
+    DbomeError, ConfigError, AuthenticationError, 
+    DeploymentError, ValidationError, FileSystemError, GitError
+)
 from .template_compiler import SQLTemplateCompiler
+from .types import ViewInfo, DeploymentResult, ViewRegistration
+from .project_init import init_project
+from .deployment import DeploymentManager
+from .config import Config, load_and_validate_config
 
 console = Console()
 
@@ -36,68 +37,22 @@ class BigQueryViewManager:
     
     def __init__(self, config_path: str = "config.yaml"):
         self.config = self._load_config(config_path)
-        self.client = self._initialize_client() if not self.config['deployment']['dry_run'] else None
+        self.auth_manager = AuthManager(self.config)
+        self.client = self._get_client() if not self.config['deployment']['dry_run'] else None
         self.template_compiler = SQLTemplateCompiler(self.config)
         
     def _load_config(self, config_path: str) -> Dict[str, Any]:
-        """Load configuration from YAML file"""
-        try:
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
-            return config
-        except FileNotFoundError:
-            console.print(f"[red]Config file {config_path} not found![/red]")
-            sys.exit(1)
-        except yaml.YAMLError as e:
-            console.print(f"[red]Error parsing config file: {e}[/red]")
-            sys.exit(1)
+        """Load and validate configuration from YAML file"""
+        config = load_and_validate_config(config_path)
+        # Convert Pydantic model to dict for backward compatibility
+        return config.model_dump()
     
-    def _get_ssm_credentials(self, parameter_name: str) -> Dict[str, Any]:
-        """Retrieve Google service account credentials from AWS SSM Parameter Store"""
+    def _get_client(self) -> bigquery.Client:
+        """Get BigQuery client from auth manager."""
         try:
-            console.print(f"[cyan]Retrieving credentials from AWS SSM parameter: {parameter_name}[/cyan]")
-            ssm = boto3.client('ssm')
-            response = ssm.get_parameter(Name=parameter_name, WithDecryption=True)
-            encoded_value = response['Parameter']['Value']
-            decoded_value = base64.b64decode(encoded_value).decode('ascii')
-            credentials_json = json.loads(decoded_value)
-            console.print("[green]✓[/green] Successfully retrieved credentials from AWS SSM")
-            return credentials_json
+            return self.auth_manager.get_client()
         except Exception as e:
-            console.print(f"[red]Failed to retrieve credentials from AWS SSM parameter '{parameter_name}': {e}[/red]")
-            sys.exit(1)
-    
-    def _initialize_client(self) -> bigquery.Client:
-        """Initialize BigQuery client"""
-        try:
-            project_id = self.config['bigquery']['project_id']
-            location = self.config['bigquery'].get('location')
-            credentials = None
-            
-            # Check for AWS SSM credentials first
-            if 'aws_ssm_credentials_parameter' in self.config:
-                console.print("[cyan]Using AWS SSM Parameter Store for credentials[/cyan]")
-                credentials_json = self._get_ssm_credentials(self.config['aws_ssm_credentials_parameter'])
-                credentials = service_account.Credentials.from_service_account_info(credentials_json)
-                client = bigquery.Client(project=project_id, location=location, credentials=credentials)
-            
-            # Check for local service account file
-            elif 'google_application_credentials' in self.config:
-                console.print("[cyan]Using local service account file for credentials[/cyan]")
-                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = self.config['google_application_credentials']
-                client = bigquery.Client(project=project_id, location=location)
-            
-            # Use default application credentials
-            else:
-                console.print("[cyan]Using default application credentials[/cyan]")
-                client = bigquery.Client(project=project_id, location=location)
-            
-            console.print(f"[green]✓[/green] Connected to BigQuery project: {project_id}")
-            return client
-            
-        except Exception as e:
-            console.print(f"[red]Failed to initialize BigQuery client: {e}[/red]")
-            sys.exit(1)
+            raise AuthenticationError(f"Failed to initialize BigQuery client: {e}")
     
     def find_sql_files(self, specific_files: Optional[List[str]] = None) -> List[Path]:
         """Find SQL view files based on configuration or specific file list"""
@@ -152,8 +107,7 @@ class BigQueryViewManager:
         views_directory = self.config['sql']['views_directory']
         
         if not os.path.exists(views_directory):
-            console.print(f"[red]Views directory {views_directory} does not exist![/red]")
-            return []
+            raise FileSystemError(f"Views directory {views_directory} does not exist!")
         
         sql_files = []
         for pattern in self.config['sql']['include_patterns']:
@@ -195,7 +149,7 @@ class BigQueryViewManager:
             except Exception as e:
                 console.print(f"[yellow]Warning: Could not register view from {file_path}: {e}[/yellow]")
     
-    def parse_sql_file(self, file_path: Path) -> Optional[Dict[str, Any]]:
+    def parse_sql_file(self, file_path: Path) -> Optional[ViewInfo]:
         """Parse SQL file using SQLGlot and extract view information"""
         try:
             with open(file_path, 'r') as f:
@@ -257,7 +211,7 @@ class BigQueryViewManager:
             console.print(f"[red]Error parsing {file_path}: {e}[/red]")
             return None
     
-    def execute_view_sql(self, sql_info: Dict[str, Any]) -> bool:
+    def execute_view_sql(self, sql_info: ViewInfo) -> bool:
         """Execute the CREATE OR REPLACE VIEW SQL statement"""
         try:
             if self.config['deployment']['dry_run']:
@@ -280,372 +234,18 @@ class BigQueryViewManager:
                     
         except Exception as e:
             console.print(f"[red]Failed to execute SQL for view {sql_info['name']}: {e}[/red]")
+            if not self.config['deployment']['dry_run']:
+                raise DeploymentError(f"Failed to execute SQL for view {sql_info['name']}: {e}")
             return False
     
     def deploy_views(self, specific_files: Optional[List[str]] = None) -> None:
-        """Deploy SQL view files to BigQuery"""
-        mode_text = "🔍 DRY RUN -" if self.config['deployment']['dry_run'] else "🚀"
-        file_source = f"({len(specific_files)} specific files)" if specific_files else "(all files)"
+        """Deploy SQL view files to BigQuery.
         
-        console.print(f"\n[bold blue]{mode_text} Starting BigQuery View Deployment {file_source}[/bold blue]\n")
-        
-        sql_files = self.find_sql_files(specific_files)
-        
-        if not sql_files:
-            if specific_files:
-                console.print("[yellow]No valid SQL view files found in the specified file list[/yellow]")
-            else:
-                console.print("[yellow]No SQL view files found to deploy[/yellow]")
-            return
-        
-        # Get deployment order based on dependencies
-        # For selected files, we only deploy the selected ones but need to consider all dependencies
-        if specific_files:
-            # Build dependency graph from all files but only return order for selected files
-            all_sql_files = self.find_sql_files()
-            deployment_order = self.template_compiler.get_deployment_order(sql_files, all_sql_files)
-        else:
-            deployment_order = self.template_compiler.get_deployment_order(sql_files)
-        
-        # For selected files, we need to register ALL views for ref() resolution
-        if specific_files:
-            all_sql_files = self.find_sql_files()
-            # Pre-register all views in the registry for ref() resolution
-            self._register_all_views(all_sql_files)
-        else:
-            all_sql_files = sql_files
-        
-        # Validate all references (check against all available views, not just selected ones)
-        validation_errors = self.template_compiler.validate_references(sql_files, all_sql_files)
-        if validation_errors:
-            console.print("[red]Template validation errors found:[/red]")
-            for error in validation_errors:
-                console.print(f"  ❌ {error}")
-            return
-        
-        # Create a table to show files found
-        table = Table(title="SQL View Files to Process")
-        table.add_column("File", style="cyan")
-        table.add_column("View Name", style="green")
-        table.add_column("Full Name", style="magenta")
-        table.add_column("Status", style="yellow")
-        
-        # First pass: Parse all files and register views (without compilation)
-        file_map = {f.stem: f for f in sql_files}
-        all_sql_info = {}
-        
-        for file_path in sql_files:
-            try:
-                with open(file_path, 'r') as f:
-                    raw_content = f.read()
-                
-                # Check if this is a template file (contains {{ }})
-                has_template_syntax = '{{' in raw_content and '}}' in raw_content
-                
-                # Check if SQL contains CREATE OR REPLACE VIEW
-                has_create_view = re.search(r'CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+', raw_content, re.IGNORECASE)
-                
-                if has_create_view:
-                    # SQL already has CREATE OR REPLACE VIEW - extract view name from it
-                    create_match = re.search(r'CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+([`\'"]?[^`\'"]+[`\'"]?)', raw_content, re.IGNORECASE)
-                    if create_match:
-                        full_name = create_match.group(1).strip('`\'"')
-                        view_name = file_path.stem  # Use filename as view name
-                        
-                        # Register view for ref() resolution (use full name from CREATE statement)
-                        self.template_compiler.register_view(view_name, create_match.group(1))
-                        
-                        all_sql_info[view_name] = {
-                            'path': file_path,
-                            'raw_content': raw_content,
-                            'view_name': view_name,
-                            'full_name': create_match.group(1),
-                            'project_id': None,  # Will be extracted during compilation
-                            'dataset_id': None,  # Will be extracted during compilation
-                        }
-                else:
-                    # Plain SELECT statement - use filename as view name
-                    view_name = file_path.stem
-                    project_id = self.config['bigquery']['project_id']
-                    dataset_id = self.config['bigquery']['dataset_id']
-                    full_name = f"`{project_id}.{dataset_id}.{view_name}`"
-                    
-                    # Register view for ref() resolution
-                    self.template_compiler.register_view(view_name, full_name)
-                    
-                    all_sql_info[view_name] = {
-                        'path': file_path,
-                        'raw_content': raw_content,
-                        'view_name': view_name,
-                        'full_name': full_name,
-                        'project_id': project_id,
-                        'dataset_id': dataset_id,
-                    }
-                    
-            except Exception as e:
-                console.print(f"[red]Error reading {file_path}: {e}[/red]")
-        
-        # Second pass: Process files in dependency order with compilation
-        processed_files = []
-        
-        for view_name in deployment_order:
-            if view_name in all_sql_info:
-                info = all_sql_info[view_name]
-                sql_info = self.parse_sql_file(info['path'])
-                if sql_info:
-                    processed_files.append(sql_info)
-                    table.add_row(
-                        str(info['path']), 
-                        sql_info['name'], 
-                        sql_info['full_name'],
-                        "✓ Valid"
-                    )
-                else:
-                    table.add_row(
-                        str(info['path']), 
-                        "N/A", 
-                        "N/A",
-                        "❌ Parse Error"
-                    )
-        
-        console.print(table)
-        console.print()
-        
-        if not processed_files:
-            console.print("[yellow]No valid view files found (must contain CREATE OR REPLACE VIEW)[/yellow]")
-            return
-        
-        # Deploy views and track results
-        deployment_results = []
-        success_count = 0
-        
-        for i, sql_info in enumerate(processed_files, 1):
-            action = "Dry-run checking" if self.config['deployment']['dry_run'] else "Deploying"
-            
-            # Show progress message first
-            console.print(f"[{i}/{len(processed_files)}] {action} {sql_info['name']}...")
-            
-            # Then execute (any errors will appear after the progress message)
-            success = self.execute_view_sql(sql_info)
-            if success:
-                success_count += 1
-            
-            # Track result for results table
-            deployment_results.append({
-                'view_name': sql_info['name'],
-                'full_name': sql_info['full_name'],
-                'success': success
-            })
-        
-        # Create results table
-        results_table = Table(title="Deployment Results")
-        results_table.add_column("View Name", style="green")
-        results_table.add_column("Full Name", style="magenta")
-        results_table.add_column("Result", style="bold")
-        
-        for result in deployment_results:
-            status = "✅ Success" if result['success'] else "❌ Failed"
-            status_style = "green" if result['success'] else "red"
-            results_table.add_row(
-                result['view_name'],
-                result['full_name'],
-                f"[{status_style}]{status}[/{status_style}]"
-            )
-        
-        console.print()
-        console.print(results_table)
-        
-        result_text = "validated" if self.config['deployment']['dry_run'] else "deployed"
-        total_files = len(processed_files)
-        
-        # Status-aware completion messages based on success rate
-        if success_count == total_files:
-            # All succeeded
-            console.print(f"\n[bold green]✅ Processing completed successfully![/bold green]")
-            console.print(f"[green]Successfully {result_text} all {total_files} views[/green]")
-        elif success_count > 0:
-            # Partial success
-            console.print(f"\n[bold yellow]⚠️  Processing completed with errors[/bold yellow]")
-            console.print(f"[yellow]Successfully {result_text} {success_count}/{total_files} views[/yellow]")
-            console.print(f"[red]{total_files - success_count} views failed[/red]")
-        else:
-            # All failed
-            console.print(f"\n[bold red]❌ Processing failed[/bold red]")
-            console.print(f"[red]Failed to {result_text.rstrip('d')} any views ({success_count}/{total_files})[/red]")
-            console.print(f"[dim]Check the error messages above for details[/dim]")
-            
-            # Exit with error code when all views fail (unless dry run)
-            if not self.config['deployment']['dry_run']:
-                sys.exit(1)
-
-
-def init_project(project_name: Optional[str] = None, quiet: bool = False) -> None:
-    """Initialize a new dbome project"""
-    if project_name:
-        # Initialize in a new directory
-        project_path = Path(project_name)
-        
-        if project_path.exists():
-            console.print(f"[red]Error: Directory '{project_name}' already exists![/red]")
-            sys.exit(1)
-        
-        console.print(f"[bold blue]🏠 Initializing dbome (dbt at home) project: {project_name}[/bold blue]\n")
-        
-        # Create project directory
-        project_path.mkdir(parents=True)
-        console.print(f"[green]📁 Created directory: {project_path}[/green]")
-    else:
-        # Initialize in current directory
-        project_path = Path.cwd()
-        project_name = project_path.name
-        
-        # Check if current directory already has dbome files
-        if (project_path / "config.yaml").exists() or (project_path / "config.yaml.template").exists():
-            console.print(f"[red]Error: Current directory already appears to be a dbome project![/red]")
-            sys.exit(1)
-        
-        console.print(f"[bold blue]🏠 Initializing dbome (dbt at home) project in current directory: {project_name}[/bold blue]\n")
-    
-    try:
-        
-        # Get templates directory
-        templates_dir = Path(__file__).parent / "templates"
-        
-        if not templates_dir.exists():
-            console.print(f"[red]Error: Templates directory not found at {templates_dir}[/red]")
-            sys.exit(1)
-        
-        # Copy template files
-        files_to_copy = [
-            ("config.yaml.template", "config.yaml.template"),
-            ("setup.sh", "setup.sh"),
-            (".gitignore.template", ".gitignore"),
-            ("post-commit", ".git/hooks/post-commit"),
-        ]
-        
-        for src_name, dst_name in files_to_copy:
-            src_path = templates_dir / src_name
-            dst_path = project_path / dst_name
-            
-            if src_path.exists():
-                # Create parent directory if needed (e.g., .git/hooks/)
-                dst_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src_path, dst_path)
-                
-                # Make post-commit hook executable
-                if dst_name.endswith("post-commit"):
-                    os.chmod(dst_path, 0o755)
-                    console.print(f"[green]🔗 Installed git hook: {dst_name}[/green]")
-                else:
-                    console.print(f"[green]📄 Created: {dst_name}[/green]")
-        
-        # Copy SQL directory structure
-        sql_src = templates_dir / "sql"
-        sql_dst = project_path / "sql"
-        if sql_src.exists():
-            shutil.copytree(sql_src, sql_dst)
-            console.print(f"[green]📁 Created SQL directory with examples[/green]")
-        
-        # Create README from template
-        readme_template = templates_dir / "README.md.template"
-        readme_dst = project_path / "README.md"
-        if readme_template.exists():
-            with open(readme_template, 'r') as f:
-                content = f.read()
-            # Replace project name placeholder
-            content = content.replace("{PROJECT_NAME}", project_name)
-            with open(readme_dst, 'w') as f:
-                f.write(content)
-            console.print(f"[green]📚 Created README.md[/green]")
-        
-        # Initialize git repository
-        original_cwd = os.getcwd()
-        if project_path != Path.cwd():
-            os.chdir(project_path)
-        
-        subprocess.run(["git", "init"], check=True, capture_output=True)
-        console.print(f"[green]🔄 Initialized git repository[/green]")
-        
-        # Configure git user if not set (for initial commit)
-        try:
-            subprocess.run(["git", "config", "user.name"], check=True, capture_output=True)
-        except subprocess.CalledProcessError:
-            subprocess.run(["git", "config", "user.name", "dbome"], check=True, capture_output=True)
-            subprocess.run(["git", "config", "user.email", "dbome@example.com"], check=True, capture_output=True)
-        
-        # Create initial commit
-        subprocess.run(["git", "add", "."], check=True, capture_output=True)
-        subprocess.run(["git", "commit", "-m", "Initial commit: dbome (dbt at home) project"], 
-                      check=True, capture_output=True)
-        console.print(f"[green]✅ Created initial commit[/green]")
-        
-        console.print(f"\n[bold green]🎉 Project '{project_name}' initialized successfully![/bold green]")
-        
-        # Auto-deployment warning section (only show if not quiet)
-        if not quiet:
-            console.print(f"\n[bold red]⚡ IMPORTANT: Auto-Deployment Feature Enabled![/bold red]")
-            console.print("─" * 60)
-            console.print(f"[yellow]🔗 Git Hook Installed:[/yellow] [bold].git/hooks/post-commit[/bold]")
-            console.print()
-            console.print(f"[green]✅ WHAT THIS MEANS:[/green]")
-            console.print(f"   • When you commit SQL files, they will be [bold]automatically deployed[/bold] to BigQuery")
-            console.print(f"   • This happens [bold]immediately after each commit[/bold] - no manual deployment needed!")
-            console.print(f"   • Only changed SQL files in sql/views/ are deployed")
-            console.print()
-            console.print(f"[red]⚠️  SAFETY REMINDER:[/red]")
-            console.print(f"   • Always test with [bold]dry run[/bold] before committing: [cyan]uv run dbome run --dry[/cyan]")
-            console.print(f"   • Configure your BigQuery credentials in [bold]config.yaml[/bold] first")
-            console.print(f"   • The hook respects your [bold]dry_run[/bold] config setting")
-            console.print()
-        
-        # Next steps only show if not quiet
-        if not quiet:
-            console.print(f"[bold blue]🚀 Next steps:[/bold blue]")
-            
-            if project_path != Path.cwd():
-                console.print(f"1. [cyan]cd {project_name}[/cyan]")
-                console.print(f"2. [cyan]cp config.yaml.template config.yaml[/cyan]")
-                console.print(f"3. Edit config.yaml with your BigQuery project details")
-                console.print(f"4. Configure Google Cloud authentication (choose one):")
-                console.print(f"   [bold]Option A (Recommended for local development):[/bold]")
-                console.print(f"   [cyan]gcloud auth application-default login[/cyan]")
-                console.print(f"   [bold]Option B (Service Account File):[/bold]")
-                console.print(f"   • Download service account JSON key from Google Cloud Console")
-                console.print(f"   • Update config.yaml with the path:")
-                console.print(f"     [dim]google_application_credentials: \"/path/to/service-account-key.json\"[/dim]")
-                console.print(f"   [bold]Option C (AWS SSM Parameter Store):[/bold]")
-                console.print(f"   • Store your service account JSON in AWS SSM Parameter Store")
-                console.print(f"   • Update config.yaml with the parameter name:")
-                console.print(f"     [dim]aws_ssm_credentials_parameter: \"/your/ssm/parameter/name\"[/dim]")
-                console.print(f"5. [cyan]dbome run --dry[/cyan]")
-            else:
-                console.print(f"1. [cyan]cp config.yaml.template config.yaml[/cyan]")
-                console.print(f"2. Edit config.yaml with your BigQuery project details")
-                console.print(f"3. Configure Google Cloud authentication (choose one):")
-                console.print(f"   [bold]Option A (Recommended for local development):[/bold]")
-                console.print(f"   [cyan]gcloud auth application-default login[/cyan]")
-                console.print(f"   [bold]Option B (Service Account File):[/bold]")
-                console.print(f"   • Download service account JSON key from Google Cloud Console")
-                console.print(f"   • Update config.yaml with the path:")
-                console.print(f"     [dim]google_application_credentials: \"/path/to/service-account-key.json\"[/dim]")
-                console.print(f"   [bold]Option C (AWS SSM Parameter Store):[/bold]")
-                console.print(f"   • Store your service account JSON in AWS SSM Parameter Store")
-                console.print(f"   • Update config.yaml with the parameter name:")
-                console.print(f"     [dim]aws_ssm_credentials_parameter: \"/your/ssm/parameter/name\"[/dim]")
-                console.print(f"4. [cyan]dbome run --dry[/cyan]")
-            
-            console.print(f"\n[dim]For more help, see README.md in your new project![/dim]")
-            console.print(f"\n[bold blue]Welcome to dbome - dbt at home! 🏠[/bold blue]")
-        
-    except subprocess.CalledProcessError as e:
-        console.print(f"[red]Error running git command: {e}[/red]")
-        sys.exit(1)
-    except Exception as e:
-        console.print(f"[red]Error initializing project: {e}[/red]")
-        # Clean up on error
-        if project_path.exists():
-            shutil.rmtree(project_path)
-        sys.exit(1)
+        Args:
+            specific_files: Optional list of specific files to deploy
+        """
+        deployment_manager = DeploymentManager(self)
+        deployment_manager.deploy_views(specific_files)
 
 
 def main():
@@ -768,7 +368,14 @@ For more help, visit: https://github.com/AnakTeka/dbome
     
     # Handle init command
     if args.command == 'init':
-        init_project(args.project_name, args.quiet)
+        try:
+            init_project(args.project_name, args.quiet)
+        except (FileSystemError, GitError) as e:
+            console.print(f"[red]Initialization error: {e}[/red]")
+            sys.exit(1)
+        except Exception as e:
+            console.print(f"[red]Unexpected error during initialization: {e}[/red]")
+            sys.exit(1)
         return
     
     # All other commands need a config file
@@ -870,6 +477,29 @@ For more help, visit: https://github.com/AnakTeka/dbome
             else:
                 console.print("[green]✅ All references are valid[/green]")
     
+    except ConfigError as e:
+        console.print(f"[red]Configuration error: {e}[/red]")
+        sys.exit(1)
+    except AuthenticationError as e:
+        console.print(f"[red]Authentication failed: {e}[/red]")
+        sys.exit(1)
+    except ValidationError as e:
+        console.print(f"[red]Validation error: {e}[/red]")
+        sys.exit(1)
+    except DeploymentError as e:
+        console.print(f"[red]Deployment failed: {e}[/red]")
+        sys.exit(1)
+    except DbomeError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Operation cancelled[/yellow]")
+        sys.exit(130)  # Standard exit code for SIGINT
+    except Exception as e:
+        console.print(f"[red]Unexpected error: {e}[/red]")
+        if "--debug" in sys.argv:
+            console.print_exception()
+        sys.exit(1)
     finally:
         # Clean up temporary config file if created
         if temp_config:
