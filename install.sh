@@ -187,7 +187,7 @@ printf "   • This happens ${BOLD}immediately after each commit${NC} - no manua
 printf "   • Only changed SQL files in sql/views/ are deployed\n"
 echo
 printf "${RED}⚠️  SAFETY REMINDER:${NC}\n"
-printf "   • Always test with ${BOLD}dry run${NC} before committing: ${BLUE}make dry-run${NC}\n"
+printf "   • Always test with ${BOLD}dry run${NC} before committing: ${BLUE}uv run dbome run --dry${NC}\n"
 printf "   • Configure your BigQuery credentials in ${BOLD}config.yaml${NC} first\n"
 printf "   • The hook respects your ${BOLD}dry_run${NC} config setting\n"
 echo
@@ -195,6 +195,6 @@ printf "${BOLD}🚀 Next Steps:${NC}\n"
 printf "   1. ${BLUE}cp config.yaml.template config.yaml${NC}\n"
 printf "   2. Edit config.yaml with your BigQuery project details\n"
 printf "   3. Set up authentication (see README.md for options)\n"
-printf "   4. ${BLUE}make dry-run${NC} to test your setup\n"
+printf "   4. ${BLUE}uv run dbome run --dry${NC} to test your setup\n"
 printf "   5. Write SQL views in sql/views/ and commit to auto-deploy!\n"
 echo 

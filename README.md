@@ -141,7 +141,6 @@ my-project/
 ├── config.yaml            # Your configuration  
 ├── config.yaml.template   # Template with examples
 ├── compiled/views/         # Generated SQL (auto-created)
-├── Makefile               # Shortcuts (make deploy, make dry-run)
 └── .git/hooks/post-commit # Auto-deployment hook
 ```
 

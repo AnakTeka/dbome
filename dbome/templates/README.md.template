@@ -139,18 +139,6 @@ dbome compile
 deactivate
 ```
 
-### Make Commands (Shortcuts)
-
-| Command | Description |
-|---------|-------------|
-| `make deploy` | Deploy all views |
-| `make dry-run` | Preview deployments |
-| `make check` | Validate SQL syntax |
-| `make compile` | Compile SQL templates to compiled/ directory |
-| `make deps` | Show dependency graph |
-| `make validate` | Validate all ref() references |
-| `make clean` | Clean build artifacts |
-
 ## 🔧 dbome Commands Reference
 
 **Note**: You can either use `uv run dbome <command>` or activate the virtual environment with `source .venv/bin/activate` and use `dbome <command>` directly.
@@ -218,7 +206,6 @@ your-project/
 ├── config.yaml            # Your configuration
 ├── config.yaml.template   # Template with examples
 ├── compiled/views/         # Generated SQL (auto-created)
-├── Makefile               # Shortcuts for common tasks
 ├── .python-version        # Python version (3.11)
 └── .git/hooks/post-commit # Auto-deployment hook
 ```
@@ -229,9 +216,8 @@ your-project/
 2. **Choose your workflow**:
    - **Quick/occasional use**: `uv run dbome run --dry` (works from anywhere)
    - **Active development**: `source .venv/bin/activate` then `dbome run --dry` (faster)
-   - **Make shortcuts**: `make dry-run` (convenient aliases)
 3. **Test with dry run**: Verify your changes work correctly
-4. **Deploy**: `dbome run` or `make deploy`
+4. **Deploy**: `dbome run`
 5. **Commit changes**: Git will auto-deploy future changes!
 
 ## 🎯 Perfect for SageMaker
@@ -276,7 +262,7 @@ For more detailed documentation, visit the [dbome](https://github.com/AnakTeka/d
 ## 🤝 Contributing
 
 1. Write your SQL views in `sql/views/`
-2. Test with `make dry-run`
+2. Test with `uv run dbome run --dry`
 3. Commit your changes
 4. Views are automatically deployed!
 

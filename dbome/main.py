@@ -519,7 +519,6 @@ def init_project(project_name: Optional[str] = None, quiet: bool = False) -> Non
         files_to_copy = [
             ("config.yaml.template", "config.yaml.template"),
             ("setup.sh", "setup.sh"),
-            ("Makefile", "Makefile"),
             (".gitignore.template", ".gitignore"),
             ("post-commit", ".git/hooks/post-commit"),
         ]
@@ -594,7 +593,7 @@ def init_project(project_name: Optional[str] = None, quiet: bool = False) -> Non
             console.print(f"   • Only changed SQL files in sql/views/ are deployed")
             console.print()
             console.print(f"[red]⚠️  SAFETY REMINDER:[/red]")
-            console.print(f"   • Always test with [bold]dry run[/bold] before committing: [cyan]make dry-run[/cyan]")
+            console.print(f"   • Always test with [bold]dry run[/bold] before committing: [cyan]uv run dbome run --dry[/cyan]")
             console.print(f"   • Configure your BigQuery credentials in [bold]config.yaml[/bold] first")
             console.print(f"   • The hook respects your [bold]dry_run[/bold] config setting")
             console.print()
