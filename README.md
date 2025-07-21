@@ -1,6 +1,10 @@
 # dbome - dbt at home 🏠
 
-> *"Mom, can we have dbt?"* • *"We have dbt at home."* • **dbt at home:** 🏠
+> *"Mom, can we have dbt?"*
+
+> *"We have dbt at home."*
+
+**dbt at home:** 🏠
 
 A **dbt-like tool** for BigQuery with simplified SQL syntax, automatic dependency resolution, and git-based workflows.
 
