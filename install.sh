@@ -148,6 +148,12 @@ EOF
     success "Created pyproject.toml"
 fi
 
+# Set Python version for uv
+if [ ! -f ".python-version" ]; then
+    echo "3.11" > .python-version
+    success "Set Python version to 3.11"
+fi
+
 # Install dbome
 log "Installing dbome package..."
 uv sync
