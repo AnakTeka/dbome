@@ -479,7 +479,7 @@ class BigQueryViewManager:
                 sys.exit(1)
 
 
-def init_project(project_name: Optional[str] = None) -> None:
+def init_project(project_name: Optional[str] = None, quiet: bool = False) -> None:
     """Initialize a new dbome project"""
     if project_name:
         # Initialize in a new directory
@@ -582,58 +582,61 @@ def init_project(project_name: Optional[str] = None) -> None:
         
         console.print(f"\n[bold green]🎉 Project '{project_name}' initialized successfully![/bold green]")
         
-        # Auto-deployment warning section
-        console.print(f"\n[bold red]⚡ IMPORTANT: Auto-Deployment Feature Enabled![/bold red]")
-        console.print("─" * 60)
-        console.print(f"[yellow]🔗 Git Hook Installed:[/yellow] [bold].git/hooks/post-commit[/bold]")
-        console.print()
-        console.print(f"[green]✅ WHAT THIS MEANS:[/green]")
-        console.print(f"   • When you commit SQL files, they will be [bold]automatically deployed[/bold] to BigQuery")
-        console.print(f"   • This happens [bold]immediately after each commit[/bold] - no manual deployment needed!")
-        console.print(f"   • Only changed SQL files in sql/views/ are deployed")
-        console.print()
-        console.print(f"[red]⚠️  SAFETY REMINDER:[/red]")
-        console.print(f"   • Always test with [bold]dry run[/bold] before committing: [cyan]make dry-run[/cyan]")
-        console.print(f"   • Configure your BigQuery credentials in [bold]config.yaml[/bold] first")
-        console.print(f"   • The hook respects your [bold]dry_run[/bold] config setting")
-        console.print()
+        # Auto-deployment warning section (only show if not quiet)
+        if not quiet:
+            console.print(f"\n[bold red]⚡ IMPORTANT: Auto-Deployment Feature Enabled![/bold red]")
+            console.print("─" * 60)
+            console.print(f"[yellow]🔗 Git Hook Installed:[/yellow] [bold].git/hooks/post-commit[/bold]")
+            console.print()
+            console.print(f"[green]✅ WHAT THIS MEANS:[/green]")
+            console.print(f"   • When you commit SQL files, they will be [bold]automatically deployed[/bold] to BigQuery")
+            console.print(f"   • This happens [bold]immediately after each commit[/bold] - no manual deployment needed!")
+            console.print(f"   • Only changed SQL files in sql/views/ are deployed")
+            console.print()
+            console.print(f"[red]⚠️  SAFETY REMINDER:[/red]")
+            console.print(f"   • Always test with [bold]dry run[/bold] before committing: [cyan]make dry-run[/cyan]")
+            console.print(f"   • Configure your BigQuery credentials in [bold]config.yaml[/bold] first")
+            console.print(f"   • The hook respects your [bold]dry_run[/bold] config setting")
+            console.print()
         
-        console.print(f"[bold blue]🚀 Next steps:[/bold blue]")
-        
-        if project_path != Path.cwd():
-            console.print(f"1. [cyan]cd {project_name}[/cyan]")
-            console.print(f"2. [cyan]cp config.yaml.template config.yaml[/cyan]")
-            console.print(f"3. Edit config.yaml with your BigQuery project details")
-            console.print(f"4. Configure Google Cloud authentication (choose one):")
-            console.print(f"   [bold]Option A (Recommended for local development):[/bold]")
-            console.print(f"   [cyan]gcloud auth application-default login[/cyan]")
-            console.print(f"   [bold]Option B (Service Account File):[/bold]")
-            console.print(f"   • Download service account JSON key from Google Cloud Console")
-            console.print(f"   • Update config.yaml with the path:")
-            console.print(f"     [dim]google_application_credentials: \"/path/to/service-account-key.json\"[/dim]")
-            console.print(f"   [bold]Option C (AWS SSM Parameter Store):[/bold]")
-            console.print(f"   • Store your service account JSON in AWS SSM Parameter Store")
-            console.print(f"   • Update config.yaml with the parameter name:")
-            console.print(f"     [dim]aws_ssm_credentials_parameter: \"/your/ssm/parameter/name\"[/dim]")
-            console.print(f"5. [cyan]dbome run --dry[/cyan]")
-        else:
-            console.print(f"1. [cyan]cp config.yaml.template config.yaml[/cyan]")
-            console.print(f"2. Edit config.yaml with your BigQuery project details")
-            console.print(f"3. Configure Google Cloud authentication (choose one):")
-            console.print(f"   [bold]Option A (Recommended for local development):[/bold]")
-            console.print(f"   [cyan]gcloud auth application-default login[/cyan]")
-            console.print(f"   [bold]Option B (Service Account File):[/bold]")
-            console.print(f"   • Download service account JSON key from Google Cloud Console")
-            console.print(f"   • Update config.yaml with the path:")
-            console.print(f"     [dim]google_application_credentials: \"/path/to/service-account-key.json\"[/dim]")
-            console.print(f"   [bold]Option C (AWS SSM Parameter Store):[/bold]")
-            console.print(f"   • Store your service account JSON in AWS SSM Parameter Store")
-            console.print(f"   • Update config.yaml with the parameter name:")
-            console.print(f"     [dim]aws_ssm_credentials_parameter: \"/your/ssm/parameter/name\"[/dim]")
-            console.print(f"4. [cyan]dbome run --dry[/cyan]")
-        
-        console.print(f"\n[dim]For more help, see README.md in your new project![/dim]")
-        console.print(f"\n[bold blue]Welcome to dbome - dbt at home! 🏠[/bold blue]")
+        # Next steps only show if not quiet
+        if not quiet:
+            console.print(f"[bold blue]🚀 Next steps:[/bold blue]")
+            
+            if project_path != Path.cwd():
+                console.print(f"1. [cyan]cd {project_name}[/cyan]")
+                console.print(f"2. [cyan]cp config.yaml.template config.yaml[/cyan]")
+                console.print(f"3. Edit config.yaml with your BigQuery project details")
+                console.print(f"4. Configure Google Cloud authentication (choose one):")
+                console.print(f"   [bold]Option A (Recommended for local development):[/bold]")
+                console.print(f"   [cyan]gcloud auth application-default login[/cyan]")
+                console.print(f"   [bold]Option B (Service Account File):[/bold]")
+                console.print(f"   • Download service account JSON key from Google Cloud Console")
+                console.print(f"   • Update config.yaml with the path:")
+                console.print(f"     [dim]google_application_credentials: \"/path/to/service-account-key.json\"[/dim]")
+                console.print(f"   [bold]Option C (AWS SSM Parameter Store):[/bold]")
+                console.print(f"   • Store your service account JSON in AWS SSM Parameter Store")
+                console.print(f"   • Update config.yaml with the parameter name:")
+                console.print(f"     [dim]aws_ssm_credentials_parameter: \"/your/ssm/parameter/name\"[/dim]")
+                console.print(f"5. [cyan]dbome run --dry[/cyan]")
+            else:
+                console.print(f"1. [cyan]cp config.yaml.template config.yaml[/cyan]")
+                console.print(f"2. Edit config.yaml with your BigQuery project details")
+                console.print(f"3. Configure Google Cloud authentication (choose one):")
+                console.print(f"   [bold]Option A (Recommended for local development):[/bold]")
+                console.print(f"   [cyan]gcloud auth application-default login[/cyan]")
+                console.print(f"   [bold]Option B (Service Account File):[/bold]")
+                console.print(f"   • Download service account JSON key from Google Cloud Console")
+                console.print(f"   • Update config.yaml with the path:")
+                console.print(f"     [dim]google_application_credentials: \"/path/to/service-account-key.json\"[/dim]")
+                console.print(f"   [bold]Option C (AWS SSM Parameter Store):[/bold]")
+                console.print(f"   • Store your service account JSON in AWS SSM Parameter Store")
+                console.print(f"   • Update config.yaml with the parameter name:")
+                console.print(f"     [dim]aws_ssm_credentials_parameter: \"/your/ssm/parameter/name\"[/dim]")
+                console.print(f"4. [cyan]dbome run --dry[/cyan]")
+            
+            console.print(f"\n[dim]For more help, see README.md in your new project![/dim]")
+            console.print(f"\n[bold blue]Welcome to dbome - dbt at home! 🏠[/bold blue]")
         
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Error running git command: {e}[/red]")
@@ -677,6 +680,7 @@ For more help, visit: https://github.com/AnakTeka/dbome
     # Init subcommand
     init_parser = subparsers.add_parser('init', help='Initialize a new dbome project')
     init_parser.add_argument('project_name', nargs='?', help='Name of the project directory to create (optional - defaults to current directory)')
+    init_parser.add_argument('--quiet', action='store_true', help='Suppress auto-deployment warnings (useful for scripted installations)')
     
     # Run subcommand
     run_parser = subparsers.add_parser('run', help='Deploy SQL views to BigQuery')
@@ -765,7 +769,7 @@ For more help, visit: https://github.com/AnakTeka/dbome
     
     # Handle init command
     if args.command == 'init':
-        init_project(args.project_name)
+        init_project(args.project_name, args.quiet)
         return
     
     # All other commands need a config file

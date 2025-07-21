@@ -161,7 +161,7 @@ success "dbome installed successfully"
 
 # Run dbome init
 log "Initializing dbome project..."
-uv run dbome init
+uv run dbome init --quiet
 success "dbome project initialized"
 
 # Final instructions
