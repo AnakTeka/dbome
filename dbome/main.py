@@ -581,7 +581,24 @@ def init_project(project_name: Optional[str] = None) -> None:
         console.print(f"[green]✅ Created initial commit[/green]")
         
         console.print(f"\n[bold green]🎉 Project '{project_name}' initialized successfully![/bold green]")
-        console.print(f"\n[bold blue]Next steps:[/bold blue]")
+        
+        # Auto-deployment warning section
+        console.print(f"\n[bold red]⚡ IMPORTANT: Auto-Deployment Feature Enabled![/bold red]")
+        console.print("─" * 60)
+        console.print(f"[yellow]🔗 Git Hook Installed:[/yellow] [bold].git/hooks/post-commit[/bold]")
+        console.print()
+        console.print(f"[green]✅ WHAT THIS MEANS:[/green]")
+        console.print(f"   • When you commit SQL files, they will be [bold]automatically deployed[/bold] to BigQuery")
+        console.print(f"   • This happens [bold]immediately after each commit[/bold] - no manual deployment needed!")
+        console.print(f"   • Only changed SQL files in sql/views/ are deployed")
+        console.print()
+        console.print(f"[red]⚠️  SAFETY REMINDER:[/red]")
+        console.print(f"   • Always test with [bold]dry run[/bold] before committing: [cyan]make dry-run[/cyan]")
+        console.print(f"   • Configure your BigQuery credentials in [bold]config.yaml[/bold] first")
+        console.print(f"   • The hook respects your [bold]dry_run[/bold] config setting")
+        console.print()
+        
+        console.print(f"[bold blue]🚀 Next steps:[/bold blue]")
         
         if project_path != Path.cwd():
             console.print(f"1. [cyan]cd {project_name}[/cyan]")

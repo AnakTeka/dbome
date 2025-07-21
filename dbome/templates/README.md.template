@@ -56,14 +56,6 @@ gcloud auth application-default login
    aws_ssm_credentials_parameter: "/sagemaker/production/XXXXXXXXXXXX"
    ```
 
-### 3. Install Dependencies (Optional)
-
-If you want to run the setup script:
-
-```bash
-./setup.sh
-```
-
 ## 📝 Writing SQL Views
 
 Create SQL files in the `sql/views/` directory using **simplified dbt-like syntax**:
@@ -111,21 +103,43 @@ git commit -m "Add user analytics views"
 
 ### Manual Deployment
 
+**Option A: Using uv run (works from anywhere)**
 ```bash
 # Deploy all views
-dbome
+uv run dbome run
 
 # Dry run (see what would be deployed)
-dbome --dry-run
+uv run dbome run --dry
 
-# Deploy specific files only
-dbome --files sql/views/user_metrics.sql
+# Deploy specific views by name
+uv run dbome run user_metrics user_actions
+
+# Deploy specific files
+uv run dbome run --select sql/views/user_metrics.sql
 
 # Compile templates without deploying
-dbome --compile-only
+uv run dbome compile
 ```
 
-### Make Commands
+**Option B: Activate virtual environment (faster for active development)**
+```bash
+# Activate the virtual environment (one-time setup)
+source .venv/bin/activate  # Linux/Mac
+# or
+.venv\Scripts\activate     # Windows
+
+# Now you can run commands directly (no uv run needed!)
+dbome run
+dbome run --dry
+dbome run user_metrics user_actions
+dbome run --select sql/views/user_metrics.sql
+dbome compile
+
+# Deactivate when done
+deactivate
+```
+
+### Make Commands (Shortcuts)
 
 | Command | Description |
 |---------|-------------|
@@ -133,19 +147,37 @@ dbome --compile-only
 | `make dry-run` | Preview deployments |
 | `make check` | Validate SQL syntax |
 | `make compile` | Compile SQL templates to compiled/ directory |
-| `make setup` | Run setup script |
+| `make deps` | Show dependency graph |
+| `make validate` | Validate all ref() references |
 | `make clean` | Clean build artifacts |
+
+## 🔧 dbome Commands Reference
+
+**Note**: You can either use `uv run dbome <command>` or activate the virtual environment with `source .venv/bin/activate` and use `dbome <command>` directly.
+
+| Command | Description |
+|---------|-------------|
+| `dbome run` | Deploy all views |
+| `dbome run --dry` | Preview what would be deployed |
+| `dbome run view_name` | Deploy specific view by name |
+| `dbome run --select file.sql` | Deploy specific files |
+| `dbome validate` | Check all references are valid |
+| `dbome deps` | Show dependency graph |
+| `dbome compile` | Generate compiled SQL files |
+| `dbome init` | Initialize new project |
 
 ## 🔍 Advanced Features
 
 ### Dependency Visualization
 ```bash
-dbome --show-deps
+uv run dbome deps    # Using uv run
+dbome deps           # If venv activated
 ```
 
 ### Reference Validation
 ```bash
-dbome --validate-refs
+uv run dbome validate    # Using uv run
+dbome validate           # If venv activated
 ```
 
 ### Compiled SQL Output
@@ -156,6 +188,85 @@ When `save_compiled: true` is enabled in config, compiled SQL files are saved to
 compiled/views/
 ├── user_actions.sql  # Auto-wrapped + resolved refs
 └── user_metrics.sql  # Auto-wrapped + resolved refs
+```
+
+### Selective Deployment
+
+Deploy only specific views:
+
+```bash
+# By view name (choose one method)
+uv run dbome run user_metrics user_actions           # Using uv run
+dbome run user_metrics user_actions                  # If venv activated
+
+# By file path
+uv run dbome run --select sql/views/user_metrics.sql sql/views/user_actions.sql    # Using uv run
+dbome run --select sql/views/user_metrics.sql sql/views/user_actions.sql           # If venv activated
+
+# Mix and match
+uv run dbome run user_metrics --select sql/views/other_view.sql    # Using uv run
+dbome run user_metrics --select sql/views/other_view.sql           # If venv activated
+```
+
+## 📁 Project Structure
+
+```
+your-project/
+├── sql/views/              # Your SQL view files
+│   ├── user_actions.sql
+│   └── user_metrics.sql
+├── config.yaml            # Your configuration
+├── config.yaml.template   # Template with examples
+├── compiled/views/         # Generated SQL (auto-created)
+├── Makefile               # Shortcuts for common tasks
+├── .python-version        # Python version (3.11)
+└── .git/hooks/post-commit # Auto-deployment hook
+```
+
+## 🚀 Getting Started
+
+1. **Write your SQL views** in `sql/views/`
+2. **Choose your workflow**:
+   - **Quick/occasional use**: `uv run dbome run --dry` (works from anywhere)
+   - **Active development**: `source .venv/bin/activate` then `dbome run --dry` (faster)
+   - **Make shortcuts**: `make dry-run` (convenient aliases)
+3. **Test with dry run**: Verify your changes work correctly
+4. **Deploy**: `dbome run` or `make deploy`
+5. **Commit changes**: Git will auto-deploy future changes!
+
+## 🎯 Perfect for SageMaker
+
+AWS SSM Parameter Store integration makes this ideal for SageMaker environments:
+
+```yaml
+# config.yaml
+aws_ssm_credentials_parameter: "/sagemaker/production/GOOGLE_CREDS"
+```
+
+dbome automatically retrieves and decodes your service account credentials from SSM.
+
+## 🆘 Troubleshooting
+
+### Validation Errors
+```bash
+# Check for issues (choose one method)
+uv run dbome validate          # Using uv run
+dbome validate                 # If venv activated
+
+# View dependency graph
+uv run dbome deps              # Using uv run  
+dbome deps                     # If venv activated
+```
+
+### Deployment Issues
+```bash
+# Test with dry run first (choose one method)
+uv run dbome run --dry         # Using uv run
+dbome run --dry                # If venv activated
+
+# Check specific views
+uv run dbome run --dry view_name   # Using uv run
+dbome run --dry view_name          # If venv activated
 ```
 
 ## 📚 Documentation

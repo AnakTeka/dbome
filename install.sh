@@ -174,4 +174,27 @@ if command -v tree &> /dev/null; then
     echo
     printf "${BOLD}📁 Project structure:${NC}\n"
     tree -a -I '.git|__pycache__|*.pyc|.uv|.venv' -L 3
-fi 
+fi
+
+echo
+printf "${BOLD}⚡ IMPORTANT: Auto-Deployment Feature Enabled!${NC}\n"
+echo "────────────────────────────────────────────────────────"
+printf "${YELLOW}🔗 Git Hook Installed:${NC} ${BOLD}.git/hooks/post-commit${NC}\n"
+echo
+printf "${GREEN}✅ WHAT THIS MEANS:${NC}\n"
+printf "   • When you commit SQL files, they will be ${BOLD}automatically deployed${NC} to BigQuery\n"
+printf "   • This happens ${BOLD}immediately after each commit${NC} - no manual deployment needed!\n"
+printf "   • Only changed SQL files in sql/views/ are deployed\n"
+echo
+printf "${RED}⚠️  SAFETY REMINDER:${NC}\n"
+printf "   • Always test with ${BOLD}dry run${NC} before committing: ${BLUE}make dry-run${NC}\n"
+printf "   • Configure your BigQuery credentials in ${BOLD}config.yaml${NC} first\n"
+printf "   • The hook respects your ${BOLD}dry_run${NC} config setting\n"
+echo
+printf "${BOLD}🚀 Next Steps:${NC}\n"
+printf "   1. ${BLUE}cp config.yaml.template config.yaml${NC}\n"
+printf "   2. Edit config.yaml with your BigQuery project details\n"
+printf "   3. Set up authentication (see README.md for options)\n"
+printf "   4. ${BLUE}make dry-run${NC} to test your setup\n"
+printf "   5. Write SQL views in sql/views/ and commit to auto-deploy!\n"
+echo 
